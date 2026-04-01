@@ -1,0 +1,42 @@
+#  Django Backend Core
+Django==4.2.13
+djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1          
+psycopg2-binary==2.9.9              # PostgreSQL adapter
+python-decouple==3.8                # .env support for settings.py
+gunicorn==22.0.0                    # Production WSGI server
+
+# Celery + Redis (Async Workers)
+celery==5.3.6
+redis==5.0.4
+django-celery-beat==2.6.0           # Scheduled periodic tasks (reminders)
+django-celery-results==2.5.1        # Store task results in DB
+
+#  ML / Data Science Layer (ml_service/)
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.4.2
+tensorflow==2.15.1                  # LSTM model (Phase 3)
+keras==2.15.0                       # High-level API for LSTM
+
+# DEV3 — RAG / Chatbot / Ollama client (ml_service/chatbot/)
+requests==2.31.0                    # ollama_client.py calls Ollama REST API
+langchain==0.1.20                   # Optional: RAG chain utilities
+langchain-community==0.0.38         # Document loaders, vector store wrappers
+sentence-transformers==2.7.0        # Embeddings for RAG retrieval
+faiss-cpu==1.8.0                    # Local vector similarity search
+
+# Shared Utilities
+python-dateutil==2.9.0             
+pytz==2024.1                        # Timezone handling
+Pillow==10.3.0                      # Image handling (future profile features)
+pydantic==2.7.1                    
+
+# Development & Testing
+pytest==8.2.0
+pytest-django==4.8.0
+factory-boy==3.3.0                  # Test data factories
+coverage==7.5.1
+black==24.4.2                       # Code formatter
+flake8==7.0.0                       # Linter
