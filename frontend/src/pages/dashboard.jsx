@@ -27,62 +27,69 @@ export default function Dashboard() {
     }
   };
 
+  // 🔥 UI CARDS
   const card = {
-  background: "#fff",
-  padding: "15px",
-  borderRadius: "12px",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
-};
-
-const grid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-  gap: "20px"
-};
-
+    background: "#fff",
+    padding: "20px",
+    borderRadius: "12px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    marginTop: "30px"
+  };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>Dashboard</h2>
+    <div style={{ maxWidth: "800px", margin: "auto", padding: "20px" }}>
+      <h2 style={{ textAlign: "center" }}>Dashboard</h2>
 
       {data ? (
         <div>
-          <p><strong>Next Period:</strong> {data.next_period_date}</p>
 
-          <p>
-            <strong>Ovulation Window:</strong>{" "}
-            {data.ovulation_window.join(" to ")}
-          </p>
+          {/* 🔥 MAIN INFO */}
+          <div style={card}>
+            <p><strong>Next Period:</strong> {data.next_period_date}</p>
 
-          <p>
-            <strong>Regularity Score:</strong>{" "}
-            {data.cycle_regularity_score}
-          </p>
+            <p>
+              <strong>Ovulation Window:</strong>{" "}
+              {data.ovulation_window.join(" to ")}
+            </p>
 
-          <h3>Insights:</h3>
-          <ul>
-            {data.insights.map((item, index) => (
-              <li key={index}>{item}</li>
-            ))}
-          </ul>
+            <p>
+              <strong>Regularity Score:</strong>{" "}
+              {data.cycle_regularity_score}
+            </p>
 
-          {/* Chart Section */}
-          <Chart
-            data={[
-              { date: "Day 1", pain: 2 },
-              { date: "Day 2", pain: 4 },
-              { date: "Day 3", pain: 1 }
-            ]}
-          />
+            <h3>Insights:</h3>
+            <ul>
+              {data.insights.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          </div>
 
-          {/* Logger Section */}
-          <Logger />
+          {/* 🔥 CHART */}
+          <div style={card}>
+            <h3>Cycle Trend</h3>
+            <Chart
+              data={[
+                { date: "Day 1", pain: 2 },
+                { date: "Day 2", pain: 4 },
+                { date: "Day 3", pain: 1 }
+              ]}
+            />
+          </div>
 
-          {/* Chatbot Section */}
-          <Chatbot />
+          {/* 🔥 LOGGER */}
+          <div style={card}>
+            <Logger />
+          </div>
+
+          {/* 🔥 CHATBOT */}
+          <div style={card}>
+            <Chatbot />
+          </div>
+
         </div>
       ) : (
-        <p>Loading...</p>
+        <p style={{ textAlign: "center" }}>Loading...</p>
       )}
     </div>
   );

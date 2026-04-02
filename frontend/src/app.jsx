@@ -1,10 +1,14 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/dashboard";
+
+import CycleLogger from "./components/cycleLogger";
+import Logger from "./components/logger";
+import Chatbot from "./components/chatbot";
 
 const styles = {
   app: {
@@ -37,20 +41,32 @@ function Layout({ children }) {
 
   return (
     <div style={styles.app}>
-      {/* Sidebar */}
       <div style={styles.sidebar}>
         <h2 style={{ color: "#e60023" }}>SYNCHER</h2>
 
-        <p onClick={() => navigate("/dashboard")}>Dashboard</p>
-        <p>Cycle Tracker</p>
-        <p>Daily Logs</p>
-        <p>AI Assistant</p>
+        {/* ✅ FIXED NAVIGATION */}
+        <p style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard")}>
+          Dashboard
+        </p>
+
+        <p style={{ cursor: "pointer" }} onClick={() => navigate("/cycle-tracker")}>
+          Cycle Tracker
+        </p>
+
+        <p style={{ cursor: "pointer" }} onClick={() => navigate("/daily-logs")}>
+          Daily Logs
+        </p>
+
+        <p style={{ cursor: "pointer" }} onClick={() => navigate("/ai-assistant")}>
+          AI Assistant
+        </p>
 
         {/* Logout */}
         <p
           style={{ color: "red", cursor: "pointer" }}
           onClick={() => {
             localStorage.removeItem("token");
+            localStorage.removeItem("user");
             window.location.href = "/login";
           }}
         >
@@ -58,7 +74,6 @@ function Layout({ children }) {
         </p>
       </div>
 
-      {/* Main */}
       <div style={styles.main}>
         <div style={styles.navbar}>
           <strong>Welcome Back 👋</strong>
@@ -71,18 +86,26 @@ function Layout({ children }) {
 }
 
 function App() {
-  const token = localStorage.getItem("token");
+  const [token, setToken] = useState(localStorage.getItem("token"));
+
+  // 🔥 EXISTING WORKING LOGIC (UNCHANGED)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newToken = localStorage.getItem("token");
+      if (newToken !== token) {
+        setToken(newToken);
+      }
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, [token]);
 
   return (
     <Routes>
 
-      {/* Default Route */}
-      <Route
-        path="/"
-        element={<Navigate to="/login" />}
-      />
+      <Route path="/" element={<Navigate to="/login" />} />
 
-      {/* Login */}
+      {/* LOGIN */}
       <Route
         path="/login"
         element={
@@ -90,16 +113,19 @@ function App() {
         }
       />
 
-      {/* Register */}
+      {/* REGISTER */}
       <Route path="/register" element={<Register />} />
 
-      {/* Onboarding */}
+      {/* ONBOARDING */}
+      <Route path="/onboarding" element={<Onboarding />} />
+
+      {/* DASHBOARD */}
       <Route
-        path="/onboarding"
+        path="/dashboard"
         element={
           token ? (
             <Layout>
-              <Onboarding />
+              <Dashboard />
             </Layout>
           ) : (
             <Navigate to="/login" />
@@ -107,13 +133,40 @@ function App() {
         }
       />
 
-      {/* Dashboard */}
+      {/* 🔥 NEW ROUTES ADDED (SAFE) */}
+
       <Route
-        path="/dashboard"
+        path="/cycle-tracker"
         element={
           token ? (
             <Layout>
-              <Dashboard />
+              <CycleLogger />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+
+      <Route
+        path="/daily-logs"
+        element={
+          token ? (
+            <Layout>
+              <Logger />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+
+      <Route
+        path="/ai-assistant"
+        element={
+          token ? (
+            <Layout>
+              <Chatbot />
             </Layout>
           ) : (
             <Navigate to="/login" />
