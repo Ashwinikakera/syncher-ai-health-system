@@ -22,17 +22,52 @@ export default function Onboarding() {
 
   const handleSubmit = async () => {
     try {
+      // ✅ Existing formatting (unchanged)
       const formattedCycles = cycles.map((c) => ({
         start_date: c.start,
         end_date: c.end
       }));
 
+      // ✅ NEW: Extract start dates for API
+      const cycle_history = cycles
+        .map((c) => c.start)
+        .filter(Boolean);
+
+      // ✅ NEW: Calculate average cycle length
+      let avg_cycle_length = 28; // default fallback
+
+      if (cycle_history.length >= 2) {
+        const diffs = [];
+
+        for (let i = 1; i < cycle_history.length; i++) {
+          const d1 = new Date(cycle_history[i - 1]);
+          const d2 = new Date(cycle_history[i]);
+
+          const diff = (d2 - d1) / (1000 * 60 * 60 * 24);
+
+          if (!isNaN(diff)) diffs.push(diff);
+        }
+
+        if (diffs.length > 0) {
+          avg_cycle_length =
+            diffs.reduce((a, b) => a + b, 0) / diffs.length;
+        }
+      }
+
+      // ✅ FINAL API CALL (fixed contract)
       await API.post("/onboarding", {
         age: Number(age),
         weight: Number(weight),
+
+        // 🔥 Correct API fields
+        cycle_history,
+        avg_cycle_length: Math.round(avg_cycle_length),
+
+        // ✅ Keep old field for safety (no break)
         cycles: formattedCycles
       });
 
+      // ✅ Token safety (unchanged)
       let token = localStorage.getItem("token");
 
       if (!token) {
@@ -56,6 +91,7 @@ export default function Onboarding() {
     } catch (err) {
       console.log("Onboarding error:", err);
 
+      // ✅ fallback (unchanged)
       localStorage.setItem("token", "demo-token");
 
       const storedUser = localStorage.getItem("user");
@@ -73,7 +109,7 @@ export default function Onboarding() {
     }
   };
 
-  // 🔥 STYLES (UNCHANGED + IMPROVED SPACING)
+  // 🔥 STYLES (UNCHANGED)
   const page = {
     display: "flex",
     justifyContent: "center",
@@ -102,7 +138,7 @@ export default function Onboarding() {
   const row = {
     display: "flex",
     gap: "12px",
-    marginTop: "8px" // 🔥 space below label
+    marginTop: "8px"
   };
 
   const label = {
@@ -154,7 +190,6 @@ export default function Onboarding() {
 
         {cycles.map((cycle, index) => (
           <div key={index} style={{ marginBottom: "25px" }}>
-            
             <strong style={{ display: "block", marginBottom: "10px" }}>
               Cycle {index + 1}
             </strong>
@@ -184,7 +219,6 @@ export default function Onboarding() {
                 />
               </div>
             </div>
-
           </div>
         ))}
 
