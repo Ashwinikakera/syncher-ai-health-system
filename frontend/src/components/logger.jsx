@@ -11,6 +11,33 @@ export default function Logger() {
   const [exercise, setExercise] = useState("");
 
   const handleSubmit = async () => {
+    // ✅ VALIDATION (SAFE + SIMPLE)
+
+    if (!date) {
+      alert("Please select date");
+      return;
+    }
+
+    if (pain === "" || pain < 0 || pain > 5) {
+      alert("Pain must be between 0–5");
+      return;
+    }
+
+    if (!mood || !flow) {
+      alert("Please select mood and flow");
+      return;
+    }
+
+    if (sleep === "" || sleep < 0 || sleep > 24) {
+      alert("Sleep must be between 0–24 hours");
+      return;
+    }
+
+    if (!stress || !exercise) {
+      alert("Please select stress and exercise");
+      return;
+    }
+
     try {
       await addLog({
         date,
@@ -21,14 +48,25 @@ export default function Logger() {
         stress,
         exercise
       });
+
       alert("Log saved ✅");
+
+      // 🔥 OPTIONAL: reset form (safe UX improvement)
+      setDate("");
+      setPain("");
+      setMood("");
+      setFlow("");
+      setSleep("");
+      setStress("");
+      setExercise("");
+
     } catch (err) {
       console.log(err);
       alert("Demo log saved ✅");
     }
   };
 
-  // 🔥 SAME CARD STYLE AS DASHBOARD (UNCHANGED)
+  // 🔥 SAME CARD STYLE (UNCHANGED)
   const card = {
     background: "#fff",
     padding: "25px",
@@ -39,7 +77,6 @@ export default function Logger() {
     textAlign: "center"
   };
 
-  // 🔥 NEW: COMMON INPUT STYLE (KEY FIX)
   const inputStyle = {
     width: "100%",
     padding: "10px",
@@ -49,7 +86,6 @@ export default function Logger() {
     boxSizing: "border-box"
   };
 
-  // 🔥 NEW: BUTTON STYLE
   const buttonStyle = {
     width: "100%",
     padding: "12px",
@@ -79,9 +115,9 @@ export default function Logger() {
         <input
           style={inputStyle}
           type="number"
-          placeholder="Pain (0-10)"
+          placeholder="Pain (0-5)"
           min="0"
-          max="10"
+          max="5"
           value={pain}
           onChange={(e) => setPain(e.target.value)}
         />
@@ -157,4 +193,4 @@ export default function Logger() {
   );
 }
 
-// This file provides a single clean Logger component that collects user health data, sends it via logService, avoids duplicate declarations, and ensures proper React export structure for integration in dashboard
+// This file validates user health input (pain range, required fields, lifestyle data), ensures only valid data is sent to backend, maintains UI consistency, and improves UX with safe form reset after submission

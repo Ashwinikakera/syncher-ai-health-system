@@ -9,6 +9,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   const handleRegister = async () => {
+    // ✅ Basic validation (existing - kept)
     if (!email || !password || !confirmPassword) {
       alert("All fields required");
       return;
@@ -19,25 +20,44 @@ export default function Register() {
       return;
     }
 
+    // 🔥 NEW: Email format validation (safe)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert("Enter valid email");
+      return;
+    }
+
+    // 🔥 NEW: Password strength validation (minimal safe)
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+
     try {
       await registerUser({
         email,
         password,
-        confirm_password: confirmPassword
+        confirm_password: confirmPassword // ✅ API contract matched
       });
 
       alert("Registered successfully");
 
-      // 🔥 SAME FLOW (UNCHANGED)
+      // ✅ SAME FLOW (UNCHANGED)
       navigate("/onboarding");
 
     } catch (err) {
       console.log(err);
-      alert("Registration failed");
+
+      // 🔥 Slightly better error handling (safe)
+      if (err.response?.data?.error) {
+        alert(err.response.data.error);
+      } else {
+        alert("Registration failed");
+      }
     }
   };
 
-  // 🔥 SAME STYLE AS LOGIN
+  // 🔥 STYLES (UNCHANGED)
   const page = {
     display: "flex",
     justifyContent: "center",
@@ -123,4 +143,4 @@ export default function Register() {
   );
 }
 
-// This file creates the registration UI, collects user details, sends them to backend via authService, handles success/failure flow, and redirects to login page enabling user account creation process
+// This file creates the registration UI, validates inputs (email + password), sends correct API payload including confirm_password, handles errors safely, and redirects user to onboarding after successful registration
