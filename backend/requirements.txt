@@ -14,12 +14,12 @@ django-celery-beat==2.6.0           # Scheduled periodic tasks (reminders)
 django-celery-results==2.5.1        # Store task results in DB
 
 # DEV3 — ML / Data Science Layer (ml_service/)
+#  ML / Data Science Layer (ml_service/)
 numpy==1.26.4
 pandas==2.2.2
 scikit-learn==1.4.2
 tensorflow==2.15.1                  # LSTM model (Phase 3)
 keras==2.15.0                       # High-level API for LSTM
-requests==2.31.0
 joblib==1.4.2
 
 # DEV3 — RAG / Chatbot / Ollama client (ml_service/chatbot/)
@@ -30,10 +30,10 @@ sentence-transformers==2.7.0        # Embeddings for RAG retrieval
 faiss-cpu==1.8.0                    # Local vector similarity search
 
 # Shared Utilities
-python-dateutil==2.9.0              # Date arithmetic (cycle predictions)
+python-dateutil==2.9.0             
 pytz==2024.1                        # Timezone handling
 Pillow==10.3.0                      # Image handling (future profile features)
-pydantic==2.7.1                     # Data validation in ml_service
+pydantic==2.7.1                    
 
 # Development & Testing
 pytest==8.2.0
@@ -42,5 +42,3 @@ factory-boy==3.3.0                  # Test data factories
 coverage==7.5.1
 black==24.4.2                       # Code formatter
 flake8==7.0.0                       # Linter
-
-groq
