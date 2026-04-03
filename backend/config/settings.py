@@ -1,7 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
 
+load_dotenv()  # loads .env file automatically
 # BASE/ BASIC
 
 BASE_DIR = Path(__file__).resolve().parent.parent
