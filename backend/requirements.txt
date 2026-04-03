@@ -42,5 +42,5 @@ factory-boy==3.3.0                  # Test data factories
 coverage==7.5.1
 black==24.4.2                       # Code formatter
 flake8==7.0.0                       # Linter
-
 groq
+python-dotenv
