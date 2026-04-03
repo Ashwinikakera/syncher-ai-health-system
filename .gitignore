@@ -27,6 +27,10 @@ __pycache__/
 # C extensions
 *.so
 
+node_modules/
+dist/
+.env
+
 # Distribution / packaging
 .Python
 build/
