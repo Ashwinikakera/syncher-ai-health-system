@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api/axios";
+import { addCycle } from "../services/cycleService";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -8,11 +9,33 @@ export default function Onboarding() {
   const [age, setAge] = useState("");
   const [weight, setWeight] = useState("");
 
+  // ✅ FIX: added missing state
+  const [selectedDate, setSelectedDate] = useState("");
+
   const [cycles, setCycles] = useState([
     { start: "", end: "" },
     { start: "", end: "" },
     { start: "", end: "" }
   ]);
+
+  // ✅ FIXED FUNCTION
+  const handleStartCycle = async () => {
+    if (!selectedDate) {
+      alert("Please select start date");
+      return;
+    }
+
+    try {
+      await addCycle({
+        start_date: selectedDate
+      });
+
+      alert("Cycle started ✅");
+
+    } catch (err) {
+      console.log("❌ Cycle start error:", err);
+    }
+  };
 
   const handleCycleChange = (index, field, value) => {
     const updated = [...cycles];
@@ -22,19 +45,16 @@ export default function Onboarding() {
 
   const handleSubmit = async () => {
     try {
-      // ✅ Existing formatting (unchanged)
       const formattedCycles = cycles.map((c) => ({
         start_date: c.start,
         end_date: c.end
       }));
 
-      // ✅ NEW: Extract start dates for API
       const cycle_history = cycles
         .map((c) => c.start)
         .filter(Boolean);
 
-      // ✅ NEW: Calculate average cycle length
-      let avg_cycle_length = 28; // default fallback
+      let avg_cycle_length = 28;
 
       if (cycle_history.length >= 2) {
         const diffs = [];
@@ -54,25 +74,19 @@ export default function Onboarding() {
         }
       }
 
-      // ✅ FINAL API CALL (fixed contract)
-      await API.post("/onboarding", {
+      await API.post("/onboarding/", {
         age: Number(age),
         weight: Number(weight),
-
-        // 🔥 Correct API fields
         cycle_history,
         avg_cycle_length: Math.round(avg_cycle_length),
-
-        // ✅ Keep old field for safety (no break)
         cycles: formattedCycles
       });
 
-      // ✅ Token safety (unchanged)
-      let token = localStorage.getItem("token");
+      const token = localStorage.getItem("token");
 
       if (!token) {
-        token = "demo-token";
-        localStorage.setItem("token", token);
+        navigate("/login");
+        return;
       }
 
       const storedUser = localStorage.getItem("user");
@@ -91,9 +105,6 @@ export default function Onboarding() {
     } catch (err) {
       console.log("Onboarding error:", err);
 
-      // ✅ fallback (unchanged)
-      localStorage.setItem("token", "demo-token");
-
       const storedUser = localStorage.getItem("user");
       const user = storedUser ? JSON.parse(storedUser) : {};
 
@@ -109,7 +120,7 @@ export default function Onboarding() {
     }
   };
 
-  // 🔥 STYLES (UNCHANGED)
+  // 🎨 UI (UNCHANGED)
   const page = {
     display: "flex",
     justifyContent: "center",
@@ -166,7 +177,6 @@ export default function Onboarding() {
       <div style={card}>
         <h2>Onboarding</h2>
 
-        {/* Age */}
         <input
           style={inputStyle}
           type="number"
@@ -176,7 +186,6 @@ export default function Onboarding() {
         />
         <br /><br />
 
-        {/* Weight */}
         <input
           style={inputStyle}
           type="number"
@@ -186,38 +195,43 @@ export default function Onboarding() {
         />
         <br /><br />
 
+        {/* 🔥 NEW: START CYCLE */}
+        <h3>Start Current Cycle</h3>
+
+        <input
+          style={inputStyle}
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+        />
+
+        <button style={buttonStyle} onClick={handleStartCycle}>
+          Start Cycle
+        </button>
+
         <h3>Last 3 Menstrual Cycles</h3>
 
         {cycles.map((cycle, index) => (
           <div key={index} style={{ marginBottom: "25px" }}>
-            <strong style={{ display: "block", marginBottom: "10px" }}>
-              Cycle {index + 1}
-            </strong>
+            <strong>Cycle {index + 1}</strong>
 
             <div style={row}>
-              <div style={{ width: "100%" }}>
-                <label style={label}>Start Date</label>
-                <input
-                  style={inputStyle}
-                  type="date"
-                  value={cycle.start}
-                  onChange={(e) =>
-                    handleCycleChange(index, "start", e.target.value)
-                  }
-                />
-              </div>
-
-              <div style={{ width: "100%" }}>
-                <label style={label}>End Date</label>
-                <input
-                  style={inputStyle}
-                  type="date"
-                  value={cycle.end}
-                  onChange={(e) =>
-                    handleCycleChange(index, "end", e.target.value)
-                  }
-                />
-              </div>
+              <input
+                style={inputStyle}
+                type="date"
+                value={cycle.start}
+                onChange={(e) =>
+                  handleCycleChange(index, "start", e.target.value)
+                }
+              />
+              <input
+                style={inputStyle}
+                type="date"
+                value={cycle.end}
+                onChange={(e) =>
+                  handleCycleChange(index, "end", e.target.value)
+                }
+              />
             </div>
           </div>
         ))}

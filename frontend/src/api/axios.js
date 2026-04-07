@@ -1,19 +1,34 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000/api",
-  timeout: 5000 // ✅ avoid hanging requests
+  baseURL: "http://127.0.0.1:8000/api/",
+  withCredentials: false,
+  timeout: 5000
 });
 
-// ✅ Attach token automatically
+// ✅ REQUEST INTERCEPTOR
 API.interceptors.request.use(
   (req) => {
     try {
-      const token = localStorage.getItem("token");
+      console.log("🚀 API CALL:", req.url);
 
+      let token = localStorage.getItem("token");
+
+      // 🔥 AUTO CLEANUP
+      if (token === "demo-token") {
+        console.warn("⚠️ Removing demo-token");
+        localStorage.removeItem("token");
+        token = null;
+      }
+
+      // ✅ SEND TOKEN
       if (token) {
         req.headers.Authorization = `Bearer ${token}`;
+        console.log("🔐 HEADER SENT:", req.headers.Authorization);
+      } else {
+        console.log("❌ No token found");
       }
+
     } catch (e) {
       console.log("Token read error:", e);
     }
@@ -23,32 +38,41 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ DEMO FALLBACK (SMART VERSION + SAFE)
+// ✅ RESPONSE INTERCEPTOR
 API.interceptors.response.use(
   (res) => res,
   (err) => {
-    console.log("⚠️ Demo fallback triggered");
+    console.log("⚠️ API error → checking fallback...");
 
-    // 🔥 SAFE GUARD (IMPORTANT)
-    if (!err || !err.config) {
-      console.log("Unknown axios error:", err);
+    // 🔥 BACKEND ERROR → DO NOT FALLBACK
+    if (err.response) {
+      console.log("❌ Backend status:", err.response.status);
+      console.log("📦 Backend data:", err.response.data);
+      return Promise.reject(err);
+    }
+
+    // 🔥 ONLY NETWORK ERROR → fallback allowed
+    if (err.code !== "ERR_NETWORK") {
+      console.log("❌ Not a network error, skipping fallback");
       return Promise.reject(err);
     }
 
     const url = err.config?.url || "";
+    console.log("🔄 Using fallback for:", url);
 
-    // 🔥 LOGIN → simulate first-time user
+    // 🔥 LOGIN → NO FALLBACK
     if (url.includes("/login")) {
-      return Promise.resolve({
-        data: {
-          token: "demo-token",
-          email: "demo@gmail.com",
-          onboardingCompleted: true
-        }
-      });
+      console.log("🚫 Login fallback disabled");
+      return Promise.reject(err);
     }
 
-    // 🔥 REGISTER → always onboarding
+    // 🔥 CHAT → NO FALLBACK (IMPORTANT FOR ML)
+    if (url.includes("/chat")) {
+      console.log("🚫 Chat fallback disabled");
+      return Promise.reject(err);
+    }
+
+    // 🔥 REGISTER
     if (url.includes("/register")) {
       return Promise.resolve({
         data: {
@@ -58,7 +82,7 @@ API.interceptors.response.use(
       });
     }
 
-    // 🔥 ONBOARDING → complete → dashboard
+    // 🔥 ONBOARDING
     if (url.includes("/onboarding")) {
       return Promise.resolve({
         data: {
@@ -83,7 +107,7 @@ API.interceptors.response.use(
       });
     }
 
-    // 🔥 Cycle fallback
+    // 🔥 Cycle
     if (url.includes("/cycle")) {
       return Promise.resolve({
         data: {
@@ -98,25 +122,13 @@ API.interceptors.response.use(
       });
     }
 
-    // 🔥 Daily logs fallback
+    // 🔥 Daily logs
     if (url.includes("/daily-log")) {
       return Promise.resolve({
-        data: {
-          logs: []
-        }
+        data: { logs: [] }
       });
     }
 
-    // 🔥 CHAT AI FALLBACK
-    if (url.includes("/chat")) {
-      return Promise.resolve({
-        data: {
-          answer: "Your next period is likely around April 25 based on your cycle history."
-        }
-      });
-    }
-
-    // 🔥 DEBUG FALLBACK (VERY IMPORTANT)
     console.log("❌ No fallback matched for:", url);
 
     return Promise.reject(err);
@@ -125,6 +137,9 @@ API.interceptors.response.use(
 
 export default API;
 
-// This file centralizes API calls, attaches JWT tokens automatically,
-// and safely simulates backend responses for login, register, onboarding,
-// dashboard, and future endpoints without breaking the app.
+// ✅ Improvements:
+// - Uses Bearer token for JWT (fixes 401)
+// - Skips demo-token in real requests
+// - Shows backend error data for debugging (very important)
+// - Keeps fallback ONLY for network failures
+// - Does NOT break any existing logic

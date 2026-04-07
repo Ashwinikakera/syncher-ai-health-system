@@ -3,14 +3,15 @@ import { registerUser } from "../services/authService";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function Register() {
+  const [username, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const navigate = useNavigate();
 
   const handleRegister = async () => {
-    // ✅ Basic validation (existing - kept)
-    if (!email || !password || !confirmPassword) {
+    // ✅ FIXED validation
+    if (!username || !email || !password || !confirmPassword) {
       alert("All fields required");
       return;
     }
@@ -20,14 +21,12 @@ export default function Register() {
       return;
     }
 
-    // 🔥 NEW: Email format validation (safe)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       alert("Enter valid email");
       return;
     }
 
-    // 🔥 NEW: Password strength validation (minimal safe)
     if (password.length < 6) {
       alert("Password must be at least 6 characters");
       return;
@@ -35,20 +34,18 @@ export default function Register() {
 
     try {
       await registerUser({
+        username,
         email,
         password,
-        confirm_password: confirmPassword // ✅ API contract matched
+        confirm_password: confirmPassword
       });
 
       alert("Registered successfully");
-
-      // ✅ SAME FLOW (UNCHANGED)
       navigate("/onboarding");
 
     } catch (err) {
       console.log(err);
 
-      // 🔥 Slightly better error handling (safe)
       if (err.response?.data?.error) {
         alert(err.response.data.error);
       } else {
@@ -57,7 +54,6 @@ export default function Register() {
     }
   };
 
-  // 🔥 STYLES (UNCHANGED)
   const page = {
     display: "flex",
     justifyContent: "center",
@@ -98,6 +94,16 @@ export default function Register() {
     <div style={page}>
       <div style={card}>
         <h2>Register</h2>
+
+        {/* ✅ FIXED HERE */}
+        <input
+          style={inputStyle}
+          type="text"
+          placeholder="Enter Name"
+          value={username}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <br /><br />
 
         <input
           style={inputStyle}
