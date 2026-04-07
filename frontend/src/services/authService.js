@@ -1,6 +1,9 @@
 import API from "../api/axios";
 
-export const registerUser = (data) => API.post("/register", data);
-export const loginUser = (data) => API.post("/login", data);
+export const registerUser = (data) => API.post("/register", data);  // ← added /
 
-// This file manages authentication by sending user registration and login data to backend APIs using axios instance, enabling secure user access and is used by Login.jsx and Register.jsx to handle auth flow and token-based communication
+export const loginUser = async (data) => {
+  const response = await API.post("/login", data);  // ← added /
+  localStorage.setItem("token", response.data.token);
+  return response;
+};

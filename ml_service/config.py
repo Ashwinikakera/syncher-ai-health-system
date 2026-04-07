@@ -1,6 +1,11 @@
 # ml_service/config.py
 
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env")
 
 # ─── ML Config ────────────────────────────────────────────────
 #MODEL_VERSION         = "1.0"

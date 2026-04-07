@@ -3,10 +3,10 @@ import { loginUser } from "../services/authService";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [loading, setLoading]   = useState(false);
+  const navigate                = useNavigate();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -17,78 +17,51 @@ export default function Login() {
     try {
       setLoading(true);
 
-      const res = await loginUser({ email, password });
-      const responseData = res?.data?.data || res?.data;
+      const response = await loginUser({ email, password });
+      const data     = response.data;
 
-      const token = responseData?.token || "demo-token";
+      // Save token and user info
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify({
+        email:               email,
+        onboardingCompleted: data.is_onboarded ?? false,
+      }));
 
-      const user = {
-        id: responseData?.id || 1,
-        email: responseData?.email || email,
-        onboardingCompleted:
-          responseData?.onboardingCompleted ??
-          responseData?.is_onboarded ??
-          false
-      };
-
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-
-      if (user.onboardingCompleted) {
-        navigate("/dashboard", {
-          replace: true,
-          state: { message: "Login successful ✅" }
-        });
+      // Redirect based on onboarding status
+      if (data.is_onboarded) {
+        navigate("/dashboard", { replace: true });
       } else {
-        navigate("/onboarding", {
-          replace: true,
-          state: { message: "Login successful ✅" }
-        });
+        navigate("/onboarding", { replace: true });
       }
 
     } catch (err) {
       console.log(err);
-      alert("Login failed");
+      const errorMsg = err.response?.data?.error || "Login failed";
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 DASHBOARD-LIKE STYLES (ONLY ADDITION)
   const page = {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100vh",
-    background: "#f8f9fb"
+    display: "flex", justifyContent: "center",
+    alignItems: "center", height: "100vh", background: "#f8f9fb"
   };
 
   const card = {
-    background: "#fff",
-    padding: "30px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    width: "320px",
-    textAlign: "center"
+    background: "#fff", padding: "30px", borderRadius: "12px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)", width: "320px", textAlign: "center"
   };
 
   const inputStyle = {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "6px",
-    border: "1px solid #ccc",
-    fontSize: "14px"
+    width: "100%", padding: "10px", borderRadius: "6px",
+    border: "1px solid #ccc", fontSize: "14px"
   };
 
   const buttonStyle = {
-    width: "100%",
-    padding: "12px",
-    background: "#e60023",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold"
+    width: "100%", padding: "12px", background: "#e60023",
+    color: "#fff", border: "none", borderRadius: "6px",
+    cursor: "pointer", fontWeight: "bold"
   };
 
   return (
@@ -97,20 +70,14 @@ export default function Login() {
         <h2>Login</h2>
 
         <input
-          style={inputStyle}
-          type="email"
-          placeholder="Enter email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          style={inputStyle} type="email" placeholder="Enter email"
+          value={email} onChange={(e) => setEmail(e.target.value)}
         />
         <br /><br />
 
         <input
-          style={inputStyle}
-          type="password"
-          placeholder="Enter password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          style={inputStyle} type="password" placeholder="Enter password"
+          value={password} onChange={(e) => setPassword(e.target.value)}
         />
         <br /><br />
 
@@ -121,14 +88,10 @@ export default function Login() {
         <br /><br />
 
         <p>
-          Don’t have an account?{" "}
+          Don't have an account?{" "}
           <span
-            style={{
-              color: "#e60023",
-              cursor: "pointer",
-              fontWeight: "bold"
-            }}
-            onClick={() => navigate("/register")}
+            style={{ color: "#e60023", cursor: "pointer", fontWeight: "bold" }}
+            onClick={() => navigate("/register/")}
           >
             Register
           </span>
@@ -137,5 +100,3 @@ export default function Login() {
     </div>
   );
 }
-
-// This file handles login UI, validates inputs, sends credentials to backend via authService, stores JWT token, manages navigation to onboarding or dashboard, and provides proper error handling and user flow

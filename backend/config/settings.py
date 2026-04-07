@@ -46,13 +46,14 @@ INSTALLED_APPS = [
 # Tell Django our custom user model
 AUTH_USER_MODEL = 'auth_app.User'
 
+APPEND_SLASH = False
 # MIDDLEWARE
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',        # Must be first
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
+   # 'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',

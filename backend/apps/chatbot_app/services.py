@@ -1,4 +1,10 @@
 # backend/apps/chatbot_app/services.py
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
 from apps.cycle_app.models import CycleHistory
 from apps.log_app.models import DailyLog
@@ -15,6 +21,7 @@ def get_chat_response(user, question):
                    may be contributing to the delay."
     }
     """
+    from ml_service.chatbot.rag import rag_chat
     try:
         # Build the data format Dev3's rag_chat expects
         cycle_records = list(

@@ -3,6 +3,7 @@ import { registerUser } from "../services/authService";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function Register() {
+  const [username, setUsername] = useState("");   // ← add
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -10,8 +11,13 @@ export default function Register() {
 
   const handleRegister = async () => {
     // ✅ Basic validation (existing - kept)
-    if (!email || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {  // ← add username check
       alert("All fields required");
+      return;
+    }
+
+    if (username.length < 3) {                    // ← add
+      alert("Username must be at least 3 characters");
       return;
     }
 
@@ -35,6 +41,7 @@ export default function Register() {
 
     try {
       await registerUser({
+        username,
         email,
         password,
         confirm_password: confirmPassword // ✅ API contract matched
@@ -98,7 +105,14 @@ export default function Register() {
     <div style={page}>
       <div style={card}>
         <h2>Register</h2>
-
+        <input
+        style={inputStyle}
+        type="text"
+        placeholder="Enter username"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        />
+        <br /><br />
         <input
           style={inputStyle}
           type="email"

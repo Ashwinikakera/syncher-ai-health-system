@@ -22,92 +22,54 @@ export default function Onboarding() {
 
   const handleSubmit = async () => {
     try {
-      // ✅ Existing formatting (unchanged)
-      const formattedCycles = cycles.map((c) => ({
-        start_date: c.start,
-        end_date: c.end
-      }));
-
-      // ✅ NEW: Extract start dates for API
       const cycle_history = cycles
         .map((c) => c.start)
         .filter(Boolean);
 
-      // ✅ NEW: Calculate average cycle length
-      let avg_cycle_length = 28; // default fallback
+      if (cycle_history.length === 0) {
+        alert("Please enter at least one cycle start date");
+        return;
+      }
 
+      let avg_cycle_length = 28;
       if (cycle_history.length >= 2) {
         const diffs = [];
-
         for (let i = 1; i < cycle_history.length; i++) {
           const d1 = new Date(cycle_history[i - 1]);
           const d2 = new Date(cycle_history[i]);
-
           const diff = (d2 - d1) / (1000 * 60 * 60 * 24);
-
           if (!isNaN(diff)) diffs.push(diff);
         }
-
         if (diffs.length > 0) {
-          avg_cycle_length =
-            diffs.reduce((a, b) => a + b, 0) / diffs.length;
+          avg_cycle_length = diffs.reduce((a, b) => a + b, 0) / diffs.length;
         }
       }
 
-      // ✅ FINAL API CALL (fixed contract)
-      await API.post("/onboarding", {
-        age: Number(age),
-        weight: Number(weight),
-
-        // 🔥 Correct API fields
+      await API.post("/onboarding/", {
+        age:              Number(age),
+        weight:           Number(weight),
         cycle_history,
         avg_cycle_length: Math.round(avg_cycle_length),
-
-        // ✅ Keep old field for safety (no break)
-        cycles: formattedCycles
       });
 
-      // ✅ Token safety (unchanged)
-      let token = localStorage.getItem("token");
-
-      if (!token) {
-        token = "demo-token";
-        localStorage.setItem("token", token);
-      }
-
+      // Only runs if API succeeded
       const storedUser = localStorage.getItem("user");
       const user = storedUser ? JSON.parse(storedUser) : {};
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          ...user,
-          onboardingCompleted: true
-        })
-      );
+      localStorage.setItem("user", JSON.stringify({
+        ...user,
+        onboardingCompleted: true
+      }));
 
       navigate("/dashboard", { replace: true });
 
     } catch (err) {
+      // Show real error — do NOT navigate to dashboard
       console.log("Onboarding error:", err);
-
-      // ✅ fallback (unchanged)
-      localStorage.setItem("token", "demo-token");
-
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : {};
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          ...user,
-          onboardingCompleted: true
-        })
-      );
-
-      navigate("/dashboard", { replace: true });
+      const errorMsg = err.response?.data?.error || "Onboarding failed. Please try again.";
+      alert(errorMsg);
     }
-  };
+};
+
 
   // 🔥 STYLES (UNCHANGED)
   const page = {

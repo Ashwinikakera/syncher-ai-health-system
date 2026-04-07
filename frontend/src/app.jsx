@@ -86,12 +86,19 @@ function Layout({ children }) {
 }
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
+  const getValidToken = () => {
+    const savedToken = localStorage.getItem("token");
+    if (!savedToken || savedToken === "undefined" || savedToken === "null") {
+      return null;
+    }
+    return savedToken;
+  };
 
-  // 🔥 EXISTING WORKING LOGIC (UNCHANGED)
+  const [token, setToken] = useState(getValidToken());
+
   useEffect(() => {
     const interval = setInterval(() => {
-      const newToken = localStorage.getItem("token");
+      const newToken = getValidToken();
       if (newToken !== token) {
         setToken(newToken);
       }
@@ -102,24 +109,16 @@ function App() {
 
   return (
     <Routes>
-
       <Route path="/" element={<Navigate to="/login" />} />
 
-      {/* LOGIN */}
       <Route
         path="/login"
-        element={
-          token ? <Navigate to="/dashboard" /> : <Login />
-        }
+        element={token ? <Navigate to="/dashboard" /> : <Login />}
       />
 
-      {/* REGISTER */}
       <Route path="/register" element={<Register />} />
-
-      {/* ONBOARDING */}
       <Route path="/onboarding" element={<Onboarding />} />
 
-      {/* DASHBOARD */}
       <Route
         path="/dashboard"
         element={
@@ -132,8 +131,6 @@ function App() {
           )
         }
       />
-
-      {/* 🔥 NEW ROUTES ADDED (SAFE) */}
 
       <Route
         path="/cycle-tracker"
@@ -173,10 +170,10 @@ function App() {
           )
         }
       />
-
     </Routes>
   );
 }
+
 
 export default App;
 

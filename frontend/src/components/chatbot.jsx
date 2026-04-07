@@ -6,14 +6,15 @@ export default function Chatbot() {
   const [answer, setAnswer] = useState("");
 
   const handleAsk = async () => {
-    try {
-      const res = await askChatbot(question);
-      setAnswer(res.data.answer);
-    } catch (err) {
-      console.log(err);
-      setAnswer("AI not available (backend not connected)");
-    }
-  };
+  try {
+    const res = await askChatbot(question);
+    setAnswer(res.data.answer);
+  } catch (err) {
+    console.log("Chatbot error:", err.response?.data || err.message);
+    setAnswer(err.response?.data?.error || "AI not available (backend not connected)");
+  }
+};
+
 
   // 🔥 SAME CARD STYLE
   const card = {
