@@ -7,9 +7,6 @@ urlpatterns = [
     # Auth — register, login
     path('api/', include('apps.auth_app.urls')),
 
-    # User — onboarding
-    path('api/', include('apps.user_app.urls')),
-
     # Cycle logs
     path('api/', include('apps.cycle_app.urls')),
 
@@ -21,4 +18,7 @@ urlpatterns = [
 
     # Chatbot
     path('api/', include('apps.chatbot_app.urls')),
+
+    #my-health
+    path('api/', include('apps.health_app.urls')),
 ]

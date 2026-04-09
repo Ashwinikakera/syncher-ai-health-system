@@ -36,11 +36,11 @@ INSTALLED_APPS = [
 
     # Our apps
     'apps.auth_app',
-    'apps.user_app',
     'apps.cycle_app',
     'apps.log_app',
     'apps.dashboard_app',
     'apps.chatbot_app',
+    'apps.health_app', 
 ]
 
 # Tell Django our custom user model

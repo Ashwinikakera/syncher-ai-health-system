@@ -6,12 +6,8 @@ class CycleHistory(models.Model):
     """
     Stores each period cycle logged by the user.
 
-    Contract expects:
-    POST /api/cycle
-    {
-        "start_date": "2024-03-01",
-        "end_date": "2024-03-05"
-    }
+    POST /api/cycle/start → { "start_date": "2024-03-01" }
+    POST /api/cycle/end   → { "end_date": "2024-03-05" }
 
     GET /api/cycle returns:
     {
@@ -31,30 +27,57 @@ class CycleHistory(models.Model):
         related_name='cycles'
     )
     start_date   = models.DateField()
-    end_date     = models.DateField()
+    end_date     = models.DateField(null=True, blank=True)  # set later via /end
     cycle_length = models.IntegerField(null=True, blank=True)  # auto calculated
     created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-start_date']  # latest first
+        ordering = ['-start_date']
 
-    def save(self, *args, **kwargs):
-        # Auto calculate cycle length from previous cycle
+    def calculate_cycle_length(self):
+        """
+        Auto calculate cycle length from previous cycle start date.
+        """
         previous = CycleHistory.objects.filter(
             user=self.user
-        ).order_by('-start_date').first()
+        ).exclude(id=self.id).order_by('-start_date').first()
 
         if previous and previous.start_date:
             delta = self.start_date - previous.start_date
-            self.cycle_length = delta.days
+            return delta.days
         else:
-            # First cycle — use user's avg_cycle_length from profile
             try:
-                self.cycle_length = self.user.profile.avg_cycle_length
+                return self.user.onboarding.avg_cycle_length
             except Exception:
-                self.cycle_length = 28  # default
-
-        super().save(*args, **kwargs)
+                return 28
 
     def __str__(self):
         return f"{self.user.email} — {self.start_date} to {self.end_date}"
+
+
+class PredictionFeedback(models.Model):
+    """
+    Stores user feedback on ML predictions.
+
+    POST /api/prediction-feedback
+    {
+        "prediction_correct": false,
+        "actual_date": "2024-03-30"
+    }
+    """
+
+    user               = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='feedbacks'
+    )
+    prediction_correct = models.BooleanField()
+    actual_date        = models.DateField()
+    created_at         = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} — correct: {self.prediction_correct}"
