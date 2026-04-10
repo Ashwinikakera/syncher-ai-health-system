@@ -57,56 +57,48 @@ export default function Onboarding() {
         return;
       }
 
-      const formattedCycles = cycles.map((c) => ({
-        start_date: c.start,
-        end_date: c.end
-      }));
-
+      // ✅ FIX: cycle_history as array of {start_date, end_date} objects
       const cycle_history = cycles
-        .map((c) => c.start)
-        .filter(Boolean);
+        .filter((c) => c.start && c.end)
+        .map((c) => ({
+          start_date: c.start,
+          end_date:   c.end
+        }));
 
+      if (cycle_history.length === 0) {
+        alert("Please enter at least one cycle");
+        return;
+      }
+
+      // ✅ Calculate avg_cycle_length from start dates
       let avg_cycle_length = 28;
-
       if (cycle_history.length >= 2) {
         const diffs = [];
-
         for (let i = 1; i < cycle_history.length; i++) {
-          const d1 = new Date(cycle_history[i - 1]);
-          const d2 = new Date(cycle_history[i]);
-
-          const diff = (d2 - d1) / (1000 * 60 * 60 * 24);
-
+          const d1   = new Date(cycle_history[i - 1].start_date);
+          const d2   = new Date(cycle_history[i].start_date);
+          const diff = Math.abs((d2 - d1) / (1000 * 60 * 60 * 24));
           if (!isNaN(diff)) diffs.push(diff);
         }
-
         if (diffs.length > 0) {
-          avg_cycle_length =
-            diffs.reduce((a, b) => a + b, 0) / diffs.length;
+          avg_cycle_length = diffs.reduce((a, b) => a + b, 0) / diffs.length;
         }
       }
 
+      // ✅ FIX: flat fields per API contract — no nested objects
       await API.post("/onboarding/", {
-        age: Number(age),
-        weight: Number(weight),
-        cycle_history,
-        avg_cycle_length: Math.round(avg_cycle_length),
-        cycles: formattedCycles,
-
-        // ✅ NEW DATA
-        symptoms: {
-          pain: Number(pain),
-          mood,
-          flow
-        },
-        medical_history: {
-          condition: condition === "other" ? otherCondition : condition
-        },
-        note
+        age:               Number(age),
+        weight:            Number(weight),
+        cycle_history:     cycle_history,
+        avg_cycle_length:  Math.round(avg_cycle_length),
+        pain:              Number(pain),
+        mood:              mood,
+        flow:              flow,
+        medical_condition: condition === "other" ? otherCondition : condition,
+        medical_notes:     note
       });
 
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-
       localStorage.setItem(
         "user",
         JSON.stringify({
@@ -119,7 +111,12 @@ export default function Onboarding() {
 
     } catch (err) {
       console.log("Onboarding error:", err);
-      navigate("/dashboard", { replace: true });
+      // ✅ FIX: show error instead of silently navigating
+      alert(
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Onboarding failed. Please try again."
+      );
     }
   };
 
@@ -254,11 +251,11 @@ export default function Onboarding() {
           onChange={(e) => setCondition(e.target.value)}
         >
           <option value="">Select Condition</option>
-          <option value="pcos">PCOS</option>
-          <option value="pcod">PCOD</option>
-          <option value="uti">UTI (Urinary Tract Infection)</option>
-          <option value="thyroid">hyroid</option>
-          <option value="none">None</option>
+          <option value="PCOS">PCOS</option>
+          <option value="PCOD">PCOD</option>
+          <option value="UTI">UTI (Urinary Tract Infection)</option>
+          <option value="Thyroid">Thyroid</option>
+          <option value="None">None</option>
           <option value="other">Other</option>
         </select>
         <br /><br />

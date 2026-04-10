@@ -126,7 +126,7 @@ class OnboardingView(APIView):
                 age               = serializer.validated_data['age'],
                 weight            = serializer.validated_data['weight'],
                 cycle_history     = serializer.validated_data['cycle_history'],
-                avg_cycle_length  = serializer.validated_data['avg_cycle_length'],
+                avg_cycle_length  = abs(serializer.validated_data['avg_cycle_length']),
                 pain              = serializer.validated_data['pain'],
                 mood              = serializer.validated_data['mood'],
                 flow              = serializer.validated_data['flow'],

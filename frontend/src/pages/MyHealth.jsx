@@ -38,7 +38,8 @@ export default function MyHealth() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await API.get("/api/my-health");
+        // FIX 1: removed /api/ prefix — baseURL already has /api/
+        const res = await API.get("/my-health/");
         if (res.data?.responses) {
           setForm(res.data.responses);
           setResult(res.data);
@@ -82,13 +83,16 @@ export default function MyHealth() {
     try {
       setSubmitting(true);
 
-      const res = await API.post("/api/my-health", form);
+      // FIX 1: removed /api/ prefix
+      await API.post("/my-health/", form);
 
-      console.log("API RESPONSE:", res.data); // 🔥 DEBUG
-
+      // FIX 3: after POST, call GET to fetch full result with score + insights
+      const res = await API.get("/my-health/");
       setResult(res.data);
 
-      // 🔥 AUTO SCROLL TO RESULT
+      console.log("API RESPONSE:", res.data);
+
+      // AUTO SCROLL TO RESULT
       setTimeout(() => {
         const el = document.getElementById("result-section");
         if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -143,7 +147,7 @@ export default function MyHealth() {
   const imageStyle = {
     width: "420px",
     height: "auto",
-    objectFit: "contain", // 🔥 FIXED IMAGE
+    objectFit: "contain",
     borderRadius: "10px"
   };
 
@@ -188,19 +192,27 @@ export default function MyHealth() {
             <>
               <select name="q1" style={input("q1")} value={form.q1} onChange={(e)=>{handleChange("q1",e.target.value);setErrors(p=>({...p,q1:""}));}}>
                 <option value="">Acne severity?</option>
-                <option>None</option><option>Mild/occasional</option><option>Persistent/recurrent</option><option>Severe/cystic</option>
+                <option>None</option>
+                <option>Mild/occasional</option>
+                <option>Persistent/recurrent</option>
+                <option>Severe/cystic</option>
               </select>
               {errors.q1 && <p style={{color:"red"}}>{errors.q1}</p>}
 
               <select name="q2" style={input("q2")} value={form.q2} onChange={(e)=>{handleChange("q2",e.target.value);setErrors(p=>({...p,q2:""}));}}>
                 <option value="">Excess hair?</option>
-                <option>None</option><option>Mild</option><option>Moderate</option><option>Significant</option>
+                <option>None</option>
+                <option>Mild</option>
+                <option>Moderate</option>
+                <option>Significant</option>
               </select>
               {errors.q2 && <p style={{color:"red"}}>{errors.q2}</p>}
 
               <select name="q3" style={input("q3")} value={form.q3} onChange={(e)=>{handleChange("q3",e.target.value);setErrors(p=>({...p,q3:""}));}}>
                 <option value="">Hair thinning?</option>
-                <option>No</option><option>Mild</option><option>Noticeable</option>
+                <option>No</option>
+                <option>Mild</option>
+                <option>Noticeable</option>
               </select>
               {errors.q3 && <p style={{color:"red"}}>{errors.q3}</p>}
             </>
@@ -218,19 +230,28 @@ export default function MyHealth() {
             <>
               <select name="q4" style={input("q4")} value={form.q4} onChange={(e)=>{handleChange("q4",e.target.value);setErrors(p=>({...p,q4:""}));}}>
                 <option value="">Weight gain?</option>
-                <option>No</option><option>Mild (2–4 kg)</option><option>Moderate (5–8 kg)</option><option>Significant (&gt;8 kg)</option>
+                <option>No</option>
+                {/* FIX 2: regular hyphen not en-dash */}
+                <option value="Mild (2-4 kg)">Mild (2-4 kg)</option>
+                <option value="Moderate (5-8 kg)">Moderate (5-8 kg)</option>
+                <option value="Significant (>8 kg)">Significant (&gt;8 kg)</option>
               </select>
               {errors.q4 && <p style={{color:"red"}}>{errors.q4}</p>}
 
               <select name="q5" style={input("q5")} value={form.q5} onChange={(e)=>{handleChange("q5",e.target.value);setErrors(p=>({...p,q5:""}));}}>
                 <option value="">Weight loss?</option>
-                <option>No</option><option>Mild (2–4 kg)</option><option>Moderate (5–8 kg)</option><option>Significant (&gt;8 kg)</option>
+                <option>No</option>
+                {/* FIX 2: regular hyphen not en-dash */}
+                <option value="Mild (2-4 kg)">Mild (2-4 kg)</option>
+                <option value="Moderate (5-8 kg)">Moderate (5-8 kg)</option>
+                <option value="Significant (>8 kg)">Significant (&gt;8 kg)</option>
               </select>
               {errors.q5 && <p style={{color:"red"}}>{errors.q5}</p>}
 
               <select name="q6" style={input("q6")} value={form.q6} onChange={(e)=>{handleChange("q6",e.target.value);setErrors(p=>({...p,q6:""}));}}>
                 <option value="">Fat distribution?</option>
-                <option>No</option><option>Yes</option>
+                <option>No</option>
+                <option>Yes</option>
               </select>
               {errors.q6 && <p style={{color:"red"}}>{errors.q6}</p>}
             </>
@@ -248,25 +269,34 @@ export default function MyHealth() {
             <>
               <select name="q7" style={input("q7")} value={form.q7} onChange={(e)=>{handleChange("q7",e.target.value);setErrors(p=>({...p,q7:""}));}}>
                 <option value="">Energy level?</option>
-                <option>Mild</option><option>Moderate</option><option>Severe</option>
+                <option>Mild</option>
+                <option>Moderate</option>
+                <option>Severe</option>
               </select>
               {errors.q7 && <p style={{color:"red"}}>{errors.q7}</p>}
 
               <select name="q8" style={input("q8")} value={form.q8} onChange={(e)=>{handleChange("q8",e.target.value);setErrors(p=>({...p,q8:""}));}}>
                 <option value="">Fatigue level?</option>
-                <option>No fatigue</option><option>Mild fatigue</option><option>Strong fatigue/crashes</option>
+                <option>No fatigue</option>
+                <option>Mild fatigue</option>
+                <option>Strong fatigue/crashes</option>
               </select>
               {errors.q8 && <p style={{color:"red"}}>{errors.q8}</p>}
 
               <select name="q9" style={input("q9")} value={form.q9} onChange={(e)=>{handleChange("q9",e.target.value);setErrors(p=>({...p,q9:""}));}}>
                 <option value="">Physical activity?</option>
-                <option>≥4 times/week</option><option>2–3 times/week</option><option>Rare/none</option>
+                <option value=">=4 times/week">≥4 times/week</option>
+                {/* FIX 2: regular hyphen not en-dash */}
+                <option value="2-3 times/week">2-3 times/week</option>
+                <option value="Rare/none">Rare/none</option>
               </select>
               {errors.q9 && <p style={{color:"red"}}>{errors.q9}</p>}
 
               <select name="q10" style={input("q10")} value={form.q10} onChange={(e)=>{handleChange("q10",e.target.value);setErrors(p=>({...p,q10:""}));}}>
                 <option value="">Diet pattern?</option>
-                <option>Mostly whole foods</option><option>Mixed</option><option>High sugar/processed/junk</option>
+                <option>Mostly whole foods</option>
+                <option>Mixed</option>
+                <option>High sugar/processed/junk</option>
               </select>
               {errors.q10 && <p style={{color:"red"}}>{errors.q10}</p>}
             </>
