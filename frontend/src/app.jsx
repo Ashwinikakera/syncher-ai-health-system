@@ -10,6 +10,8 @@ import CycleLogger from "./components/cycleLogger";
 import Logger from "./components/logger";
 import Chatbot from "./components/chatbot";
 
+import MyHealth from "./pages/MyHealth";
+
 const styles = {
   app: {
     display: "flex",
@@ -84,6 +86,10 @@ function Layout({ children }) {
           AI Assistant
         </p>
 
+        <p style={{ cursor: "pointer", color: "black" }} onClick={() => navigate("/my-health")}>
+          My Health
+        </p>
+
         <p
           style={{ color: "#ff4d4d", cursor: "pointer", marginTop: "20px", fontWeight: "bold" }}
           onClick={() => {
@@ -97,9 +103,7 @@ function Layout({ children }) {
       </div>
 
       <div style={styles.main}>
-        <div style={styles.navbar}>
-          <strong>Welcome Back 👋</strong>
-        </div>
+        
 
         {children}
       </div>
@@ -186,6 +190,19 @@ function App() {
           token ? (
             <Layout>
               <Chatbot />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+
+      <Route
+        path="/my-health"
+        element={
+          token ? (
+            <Layout>
+              <MyHealth />
             </Layout>
           ) : (
             <Navigate to="/login" />

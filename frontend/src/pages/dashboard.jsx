@@ -7,6 +7,10 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [risk, setRisk] = useState("");
 
+  // ✅ NEW STATES
+  const [isCorrect, setIsCorrect] = useState("");
+  const [manualDate, setManualDate] = useState("");
+
   useEffect(() => {
     fetchDashboard();
   }, []);
@@ -53,7 +57,11 @@ export default function Dashboard() {
                 "Your cycle is fairly regular",
                 "Maintain healthy lifestyle",
                 "Track logs for better accuracy"
-              ]
+              ],
+
+        last_cycles: backendData.last_cycles || [],
+        symptoms: backendData.symptoms || {},
+        medical_history: backendData.medical_history || {}
       };
 
       setData(safeData);
@@ -65,14 +73,16 @@ export default function Dashboard() {
         next_period_date: "N/A",
         ovulation_window: ["N/A", "N/A"],
         cycle_regularity_score: 0,
-        insights: ["Backend not connected"]
+        insights: ["Backend not connected"],
+        last_cycles: [],
+        symptoms: {},
+        medical_history: {}
       });
 
       setRisk("Low");
     }
   };
 
-  // 🔥 CARD FIX (NO OVERFLOW)
   const card = {
     background: "#fff",
     padding: "25px",
@@ -83,27 +93,42 @@ export default function Dashboard() {
     boxSizing: "border-box"
   };
 
+  const inputStyle = {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "6px",
+    border: "1px solid #ccc",
+    marginTop: "8px"
+  };
+
   return (
     <div
       style={{
         padding: "20px",
-
-        // 🔥 FULL RED THEME BACKGROUND
         background: "#ffe5e5",
         minHeight: "100vh"
       }}
     >
-      {/* 🔥 PERFECT CENTER WRAPPER */}
       <div
         style={{
-          maxWidth: "950px",   // ✅ reduced width (fix overflow)
+          maxWidth: "950px",
           margin: "0 auto"
         }}
       >
 
+        {/* ✅ WELCOME BACK (ONLY HERE) */}
+        <div style={{
+          background: "#ff2d2d",
+          color: "#fff",
+          padding: "12px",
+          borderRadius: "8px",
+          marginBottom: "20px",
+          fontWeight: "bold",
+          textAlign: "center"
+        }}>
+          Welcome Back 👋
+        </div>
 
-
-        {/* TITLE */}
         <h2 style={{ marginBottom: "10px" }}>
           Dashboard
         </h2>
@@ -112,7 +137,30 @@ export default function Dashboard() {
           <>
             {/* MAIN INFO */}
             <div style={card}>
-              <p><strong>Next Period:</strong> {data.next_period_date}</p>
+              <p>
+                <strong>Next Period:</strong> {data.next_period_date}
+              </p>
+
+              {/* ✅ NEW YES / NO */}
+              <select
+                style={inputStyle}
+                value={isCorrect}
+                onChange={(e) => setIsCorrect(e.target.value)}
+              >
+                <option value="">Is this correct?</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+
+              {/* ✅ SHOW DATE IF NO */}
+              {isCorrect === "no" && (
+                <input
+                  style={inputStyle}
+                  type="date"
+                  value={manualDate}
+                  onChange={(e) => setManualDate(e.target.value)}
+                />
+              )}
 
               <p>
                 <strong>Ovulation Window:</strong>{" "}
@@ -166,6 +214,30 @@ export default function Dashboard() {
                   ]}
                 />
               </div>
+            </div>
+
+
+
+            {/* SYMPTOMS */}
+            <div style={card}>
+              <h3>Recent Premenstrual Symptoms</h3>
+
+              <p><strong>Pain Level:</strong> {data.symptoms?.pain || "N/A"}/5</p>
+              <p><strong>Mood:</strong> {data.symptoms?.mood || "N/A"}</p>
+              <p><strong>Flow:</strong> {data.symptoms?.flow || "N/A"}</p>
+            </div>
+
+            {/* MEDICAL HISTORY */}
+            <div style={card}>
+              <h3>Medical History</h3>
+
+              <p><strong>Condition:</strong> {data.medical_history?.condition || "N/A"}</p>
+              <p><strong>Other:</strong> {data.medical_history?.other || "N/A"}</p>
+
+              <h4>Notes:</h4>
+              <p style={{ fontStyle: "italic" }}>
+                {data.medical_history?.notes || "No notes"}
+              </p>
             </div>
 
           </>

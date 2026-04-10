@@ -56,13 +56,22 @@ export default function CycleLogger() {
     window.location.reload();
   };
 
+  // ✅ NEW PAGE BACKGROUND
+  const page = {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #ffe5e5, #fff0f0)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center"
+  };
+
   const card = {
     background: "#fff",
     padding: "25px",
     borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
     maxWidth: "400px",
-    margin: "40px auto",
+    width: "100%",
     textAlign: "center"
   };
 
@@ -84,43 +93,44 @@ export default function CycleLogger() {
     fontWeight: "bold"
   };
 
-  // ✅ NEW: spacing container
   const formGroup = {
     display: "flex",
     flexDirection: "column",
-    gap: "15px", // 🔥 THIS FIXES YOUR ISSUE
+    gap: "15px",
     marginTop: "20px"
   };
 
   return (
-    <div style={card}>
-      <h3>Cycle Tracker</h3>
+    <div style={page}>
+      <div style={card}>
+        <h3>Cycle Tracker</h3>
 
-      {!isActive ? (
-        <div style={formGroup}>
-          <input
-            style={inputStyle}
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
+        {!isActive ? (
+          <div style={formGroup}>
+            <input
+              style={inputStyle}
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
 
-          <button style={buttonStyle} onClick={handleStart}>
-            Start Cycle
-          </button>
-        </div>
-      ) : (
-        <div style={formGroup}>
-          <p><strong>Cycle Active from:</strong> {startDate}</p>
+            <button style={buttonStyle} onClick={handleStart}>
+              Start Cycle
+            </button>
+          </div>
+        ) : (
+          <div style={formGroup}>
+            <p><strong>Cycle Active from:</strong> {startDate}</p>
 
-          <button
-            style={{ ...buttonStyle, background: "black" }}
-            onClick={handleEnd}
-          >
-            End Cycle
-          </button>
-        </div>
-      )}
+            <button
+              style={{ ...buttonStyle, background: "black" }}
+              onClick={handleEnd}
+            >
+              End Cycle
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
