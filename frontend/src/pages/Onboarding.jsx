@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api/axios";
-import { addCycle } from "../services/cycleService";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -9,33 +8,23 @@ export default function Onboarding() {
   const [age, setAge] = useState("");
   const [weight, setWeight] = useState("");
 
-  // ✅ FIX: added missing state
-  const [selectedDate, setSelectedDate] = useState("");
-
   const [cycles, setCycles] = useState([
     { start: "", end: "" },
     { start: "", end: "" },
     { start: "", end: "" }
   ]);
 
-  // ✅ FIXED FUNCTION
-  const handleStartCycle = async () => {
-    if (!selectedDate) {
-      alert("Please select start date");
-      return;
-    }
+  // ✅ Symptoms
+  const [pain, setPain] = useState("");
+  const [mood, setMood] = useState("");
+  const [flow, setFlow] = useState("");
 
-    try {
-      await addCycle({
-        start_date: selectedDate
-      });
+  // ✅ Medical history
+  const [condition, setCondition] = useState("");
+  const [otherCondition, setOtherCondition] = useState(""); // used only if "other"
 
-      alert("Cycle started ✅");
-
-    } catch (err) {
-      console.log("❌ Cycle start error:", err);
-    }
-  };
+  // ✅ Notes
+  const [note, setNote] = useState("");
 
   const handleCycleChange = (index, field, value) => {
     const updated = [...cycles];
@@ -43,8 +32,31 @@ export default function Onboarding() {
     setCycles(updated);
   };
 
+  // ✅ CLEAR FUNCTION ADDED
+  const handleClear = () => {
+    setAge("");
+    setWeight("");
+    setCycles([
+      { start: "", end: "" },
+      { start: "", end: "" },
+      { start: "", end: "" }
+    ]);
+    setPain("");
+    setMood("");
+    setFlow("");
+    setCondition("");
+    setOtherCondition("");
+    setNote("");
+  };
+
   const handleSubmit = async () => {
     try {
+      // ✅ Pain validation (1–5)
+      if (!pain || pain < 1 || pain > 5) {
+        alert("Pain must be between 1 and 5");
+        return;
+      }
+
       const formattedCycles = cycles.map((c) => ({
         start_date: c.start,
         end_date: c.end
@@ -79,23 +91,26 @@ export default function Onboarding() {
         weight: Number(weight),
         cycle_history,
         avg_cycle_length: Math.round(avg_cycle_length),
-        cycles: formattedCycles
+        cycles: formattedCycles,
+
+        // ✅ NEW DATA
+        symptoms: {
+          pain: Number(pain),
+          mood,
+          flow
+        },
+        medical_history: {
+          condition: condition === "other" ? otherCondition : condition
+        },
+        note
       });
 
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : {};
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
       localStorage.setItem(
         "user",
         JSON.stringify({
-          ...user,
+          ...storedUser,
           onboardingCompleted: true
         })
       );
@@ -104,29 +119,17 @@ export default function Onboarding() {
 
     } catch (err) {
       console.log("Onboarding error:", err);
-
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : {};
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          ...user,
-          onboardingCompleted: true
-        })
-      );
-
       navigate("/dashboard", { replace: true });
     }
   };
 
-  // 🎨 UI (UNCHANGED)
+  // 🎨 UI
   const page = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    minHeight: "100vh",
-    background: "#f8f9fb"
+    minHeight: "200vh",
+    background: "#ffe5e5"
   };
 
   const card = {
@@ -150,14 +153,6 @@ export default function Onboarding() {
     display: "flex",
     gap: "12px",
     marginTop: "8px"
-  };
-
-  const label = {
-    display: "block",
-    marginBottom: "6px",
-    fontSize: "13px",
-    fontWeight: "500",
-    textAlign: "left"
   };
 
   const buttonStyle = {
@@ -195,21 +190,7 @@ export default function Onboarding() {
         />
         <br /><br />
 
-        {/* 🔥 NEW: START CYCLE */}
-        <h3>Start Current Cycle</h3>
-
-        <input
-          style={inputStyle}
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        />
-
-        <button style={buttonStyle} onClick={handleStartCycle}>
-          Start Cycle
-        </button>
-
-        <h3>Last 3 Menstrual Cycles</h3>
+        <h3>Last 3 Menstrual Cycles (Previous to Oldest)</h3>
 
         {cycles.map((cycle, index) => (
           <div key={index} style={{ marginBottom: "25px" }}>
@@ -236,9 +217,88 @@ export default function Onboarding() {
           </div>
         ))}
 
-        <button style={buttonStyle} onClick={handleSubmit}>
-          Submit
-        </button>
+        <h3>Symptoms</h3>
+
+        <input
+          style={inputStyle}
+          type="number"
+          placeholder="Pain Level (1-5)"
+          min="1"
+          max="5"
+          value={pain}
+          onChange={(e) => setPain(e.target.value)}
+        />
+        <br /><br />
+
+        <select style={inputStyle} value={mood} onChange={(e) => setMood(e.target.value)}>
+          <option value="">Mood</option>
+          <option value="low">Happy</option>
+          <option value="medium">Low</option>
+          <option value="high">Irritated</option>
+        </select>
+        <br /><br />
+
+        <select style={inputStyle} value={flow} onChange={(e) => setFlow(e.target.value)}>
+          <option value="">Flow</option>
+          <option value="light">Light</option>
+          <option value="medium">Medium</option>
+          <option value="heavy">Heavy</option>
+        </select>
+        <br /><br />
+
+        <h3>Medical History</h3>
+
+        <select
+          style={inputStyle}
+          value={condition}
+          onChange={(e) => setCondition(e.target.value)}
+        >
+          <option value="">Select Condition</option>
+          <option value="pcos">PCOS</option>
+          <option value="pcod">PCOD</option>
+          <option value="uti">UTI (Urinary Tract Infection)</option>
+          <option value="thyroid">hyroid</option>
+          <option value="none">None</option>
+          <option value="other">Other</option>
+        </select>
+        <br /><br />
+
+        {condition === "other" && (
+          <>
+            <input
+              style={inputStyle}
+              type="text"
+              placeholder="Enter your condition"
+              value={otherCondition}
+              onChange={(e) => setOtherCondition(e.target.value)}
+            />
+            <br /><br />
+          </>
+        )}
+
+        <textarea
+          style={inputStyle}
+          placeholder="Any notes (e.g. missed period in last 6 month)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        <br /><br />
+
+        <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+          <button
+            style={{ ...buttonStyle, width: "50%" }}
+            onClick={handleSubmit}
+          >
+            Submit
+          </button>
+
+          <button
+            style={{ ...buttonStyle, width: "50%", background: "#555" }}
+            onClick={handleClear}
+          >
+            Clear Form
+          </button>
+        </div>
       </div>
     </div>
   );

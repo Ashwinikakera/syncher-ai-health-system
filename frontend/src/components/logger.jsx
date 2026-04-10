@@ -11,17 +11,26 @@ export default function Logger() {
   const [stress, setStress] = useState("");
   const [exercise, setExercise] = useState("");
 
+  const [whiteDischarge, setWhiteDischarge] = useState("");
+
+  const [medication, setMedication] = useState("");
+  const [medicationDetails, setMedicationDetails] = useState("");
+  const [food, setFood] = useState([]);
+  const [routine, setRoutine] = useState("");
+  const [routineDetails, setRoutineDetails] = useState("");
+  const [hydration, setHydration] = useState("");
+
+  const [symptoms, setSymptoms] = useState([]);
+  const [otherSymptom, setOtherSymptom] = useState("");
+
   const [cycle, setCycle] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ FIXED: GET ACTIVE CYCLE FROM LOCALSTORAGE (NOT BACKEND)
   useEffect(() => {
     const storedCycle = JSON.parse(localStorage.getItem("cycle"));
 
     if (storedCycle?.isActive) {
-      setCycle({
-        start_date: storedCycle.startDate
-      });
+      setCycle({ start_date: storedCycle.startDate });
     } else {
       setCycle(null);
     }
@@ -29,53 +38,81 @@ export default function Logger() {
     setLoading(false);
   }, []);
 
-  // 🔥 BLOCK IF NO ACTIVE CYCLE
   if (loading) {
     return <p style={{ textAlign: "center" }}>Checking cycle...</p>;
   }
 
-  if (!cycle) {
-    return (
-      <div style={{ textAlign: "center", marginTop: "100px" }}>
-        <h2 style={{ color: "red" }}>⚠️ Cycle has not yet started</h2>
-        <p>Please go to Cycle Tracker and start your cycle</p>
-      </div>
+  const handleFoodChange = (item) => {
+    setFood(prev =>
+      prev.includes(item) ? prev.filter(f => f !== item) : [...prev, item]
     );
-  }
-
-  // 🔥 DAY CALCULATION
-  const getDayNumber = () => {
-    if (!cycle?.start_date || !date) return "";
-
-    const selected = new Date(date);
-    const start = new Date(cycle.start_date);
-
-    return Math.floor((selected - start) / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  // 🔥 SUBMIT LOG
+  const handleSymptomChange = (item) => {
+    setSymptoms(prev =>
+      prev.includes(item)
+        ? prev.filter(s => s !== item)
+        : [...prev, item]
+    );
+  };
+
+  // ✅ ADDED CLEAR FUNCTION
+  const handleClear = () => {
+    setDate("");
+    setPain("");
+    setMood("");
+    setFlow("");
+    setSleep("");
+    setStress("");
+    setExercise("");
+    setMedication("");
+    setMedicationDetails("");
+    setFood([]);
+    setRoutine("");
+    setRoutineDetails("");
+    setHydration("");
+    setSymptoms([]);
+    setOtherSymptom("");
+    setWhiteDischarge("");
+  };
+
   const handleSubmit = async () => {
     if (!date) {
       alert("Please select date");
       return;
     }
 
+    if (cycle) {
+      if (!pain || pain < 1 || pain > 10) {
+        alert("Pain must be between 1 and 10");
+        return;
+      }
+    }
+
     try {
       const payload = {
         date,
-        pain: Number(pain),
         mood,
         flow,
         sleep: Number(sleep),
         stress,
-        exercise
+        exercise,
+        medication,
+        medication_details: medicationDetails,
+        food,
+        routine,
+        routine_details: routineDetails,
+        hydration,
+        symptoms,
+        other_symptom: otherSymptom,
+        white_discharge: whiteDischarge,
+        ...(cycle && { pain: Number(pain) })
       };
 
       await addLog(payload);
 
       alert("Log saved ✅");
 
-      // reset form (KEEP DATE EMPTY → user selects next day manually)
       setDate("");
       setPain("");
       setMood("");
@@ -83,6 +120,15 @@ export default function Logger() {
       setSleep("");
       setStress("");
       setExercise("");
+      setMedication("");
+      setMedicationDetails("");
+      setFood([]);
+      setRoutine("");
+      setRoutineDetails("");
+      setHydration("");
+      setSymptoms([]);
+      setOtherSymptom("");
+      setWhiteDischarge("");
 
     } catch (err) {
       const errorMsg = err.response?.data?.error;
@@ -95,36 +141,37 @@ export default function Logger() {
     }
   };
 
-  // 🔥 END CYCLE (FRONTEND + BACKEND)
   const handleEndCycle = async () => {
     try {
-      await endCycle(); // backend call (optional)
-
-      localStorage.removeItem("cycle"); // ✅ MAIN FIX
-
+      await endCycle();
+      localStorage.removeItem("cycle");
       alert("Cycle ended ✅");
-
-      setCycle(null); // immediate UI update
-
-    } catch (err) {
-      console.log("❌ End cycle error:", err);
-
-      // even if backend fails → still end locally
+      setCycle(null);
+    } catch {
       localStorage.removeItem("cycle");
       setCycle(null);
-
       alert("Cycle ended (Demo Mode)");
     }
   };
 
-  // 🎨 UI
+  const pageWrapper = {
+    minHeight: "100vh",
+    width: "100%",
+    background: "#ffe5e5",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "20px"
+  };
+
   const card = {
     background: "#fff",
     padding: "25px",
     borderRadius: "12px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    maxWidth: "400px",
-    margin: "40px auto",
+    width: "100%",
+    maxWidth: "450px",
+    margin: "0",
     textAlign: "center"
   };
 
@@ -147,81 +194,213 @@ export default function Logger() {
   };
 
   return (
-    <div style={card}>
-      <h3>Cycle Logger</h3>
+    <div style={pageWrapper}>
+      <div style={card}>
+        <h3 style={{ marginBottom: "10px" }}>Cycle Logger</h3>
 
-      {date && (
-        <p>
-          <strong>Day {getDayNumber()} of your cycle</strong>
-        </p>
-      )}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <input
+            style={inputStyle}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
 
-        {/* ✅ DATE PICKER */}
-        <input
-          style={inputStyle}
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
+          {cycle && (
+            <>
+              <input
+                style={inputStyle}
+                type="number"
+                placeholder="Pain (1-5)"
+                value={pain}
+                min="1"
+                max="5"
+                onChange={(e) => setPain(e.target.value)}
+              />
 
-        <input
-          style={inputStyle}
-          type="number"
-          placeholder="Pain (1-5)"
-          value={pain}
-          onChange={(e) => setPain(e.target.value)}
-        />
+              <select style={inputStyle} value={mood} onChange={(e) => setMood(e.target.value)}>
+                <option value="">Mood</option>
+                <option value="low">Happy</option>
+                <option value="medium">Low</option>
+                <option value="high">Irritated</option>
+              </select>
 
-        <select style={inputStyle} value={mood} onChange={(e) => setMood(e.target.value)}>
-          <option value="">Mood</option>
-          <option value="low">Happy</option>
-          <option value="medium">Low</option>
-          <option value="high">Irritated</option>
-        </select>
+              <select style={inputStyle} value={flow} onChange={(e) => setFlow(e.target.value)}>
+                <option value="">Flow</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="heavy">Heavy</option>
+              </select>
+            </>
+          )}
 
-        <select style={inputStyle} value={flow} onChange={(e) => setFlow(e.target.value)}>
-          <option value="">Flow</option>
-          <option value="light">Light</option>
-          <option value="medium">Medium</option>
-          <option value="heavy">Heavy</option>
-        </select>
+          <input
+            style={inputStyle}
+            type="number"
+            placeholder="Sleep hours"
+            value={sleep}
+            onChange={(e) => setSleep(e.target.value)}
+          />
 
-        <input
-          style={inputStyle}
-          type="number"
-          placeholder="Sleep hours"
-          value={sleep}
-          onChange={(e) => setSleep(e.target.value)}
-        />
+          <select style={inputStyle} value={stress} onChange={(e) => setStress(e.target.value)}>
+            <option value="">Stress</option>
+            <option value="none">None</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
 
-        <select style={inputStyle} value={stress} onChange={(e) => setStress(e.target.value)}>
-          <option value="">Stress</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+          <select style={inputStyle} value={exercise} onChange={(e) => setExercise(e.target.value)}>
+            <option value="">Exercise</option>
+            <option value="none">None</option>
+            <option value="light">Light</option>
+            <option value="moderate">Moderate</option>
+            <option value="intense">Intense</option>
+          </select>
 
-        <select style={inputStyle} value={exercise} onChange={(e) => setExercise(e.target.value)}>
-          <option value="">Exercise</option>
-          <option value="none">None</option>
-          <option value="light">Light</option>
-          <option value="moderate">Moderate</option>
-          <option value="intense">Intense</option>
-        </select>
+          {!cycle && (
+            <>
+              <select style={inputStyle} value={medication} onChange={(e) => setMedication(e.target.value)}>
+                <option value="">Medication</option>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
 
-        <button style={buttonStyle} onClick={handleSubmit}>
-          Submit Log
-        </button>
+              {medication === "yes" && (
+                <input
+                  style={inputStyle}
+                  type="text"
+                  placeholder="Enter medication details"
+                  value={medicationDetails}
+                  onChange={(e) => setMedicationDetails(e.target.value)}
+                />
+              )}
 
-        <button
-          style={{ ...buttonStyle, background: "black" }}
-          onClick={handleEndCycle}
-        >
-          End Cycle
-        </button>
+              <div style={{ textAlign: "left" }}>
+                <strong>Food</strong>
+                {["home", "junk", "healthy", "skipped"].map(item => (
+                  <label key={item} style={{ display: "block" }}>
+                    <input
+                      type="checkbox"
+                      checked={food.includes(item)}
+                      onChange={() => handleFoodChange(item)}
+                    /> {item}
+                  </label>
+                ))}
+              </div>
 
+              <select style={inputStyle} value={routine} onChange={(e) => setRoutine(e.target.value)}>
+                <option value="">Routine Change</option>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+
+              {routine === "yes" && (
+                <input
+                  style={inputStyle}
+                  type="text"
+                  placeholder="What changed?"
+                  value={routineDetails}
+                  onChange={(e) => setRoutineDetails(e.target.value)}
+                />
+              )}
+
+              <select
+                style={inputStyle}
+                value={whiteDischarge}
+                onChange={(e) => setWhiteDischarge(e.target.value)}
+              >
+                <option value="">White Discharge</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="none">None</option>
+              </select>
+
+              <select style={inputStyle} value={hydration} onChange={(e) => setHydration(e.target.value)}>
+                <option value="">Hydration</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+
+              <div style={{ textAlign: "left" }}>
+                <strong>Premenstrual Symptoms</strong>
+
+                <div style={{
+                  border: "1px solid #ccc",
+                  borderRadius: "6px",
+                  padding: "10px",
+                  marginTop: "6px"
+                }}>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    {["Cramps", "Headache", "Fatigue"].map(item => (
+                      <label key={item}>
+                        <input
+                          type="checkbox"
+                          checked={symptoms.includes(item)}
+                          onChange={() => handleSymptomChange(item)}
+                        /> {item}
+                      </label>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "6px" }}>
+                    {["Mood_swings", "Nausea"].map(item => (
+                      <label key={item}>
+                        <input
+                          type="checkbox"
+                          checked={symptoms.includes(item)}
+                          onChange={() => handleSymptomChange(item)}
+                        /> {item}
+                      </label>
+                    ))}
+
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={symptoms.includes("other")}
+                        onChange={() => handleSymptomChange("other")}
+                      /> Other
+                    </label>
+                  </div>
+                </div>
+
+                {symptoms.includes("other") && (
+                  <input
+                    style={{ ...inputStyle, marginTop: "8px" }}
+                    type="text"
+                    placeholder="Enter other symptoms"
+                    value={otherSymptom}
+                    onChange={(e) => setOtherSymptom(e.target.value)}
+                  />
+                )}
+              </div>
+            </>
+          )}
+
+          <button style={buttonStyle} onClick={handleSubmit}>
+            Submit Log
+          </button>
+
+          {/* ✅ CLEAR BUTTON ADDED */}
+          <button
+            style={{ ...buttonStyle, background: "#555" }}
+            onClick={handleClear}
+          >
+            Clear Form
+          </button>
+
+          {cycle && (
+            <button
+              style={{ ...buttonStyle, background: "black" }}
+              onClick={handleEndCycle}
+            >
+              End Cycle
+            </button>
+          )}
+
+        </div>
       </div>
     </div>
   );

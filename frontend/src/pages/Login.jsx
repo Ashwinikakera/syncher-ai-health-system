@@ -43,9 +43,7 @@ export default function Login() {
       // ✅ SMART DEFAULT
       const onboardingCompleted =
         responseData?.onboardingCompleted === true ||
-        responseData?.is_onboarded === true
-          ? true
-          : true; // ✅ FORCE TRUE FOR LOGIN USERS
+        responseData?.is_onboarded === true;
 
       const user = {
         id: responseData?.id || 1,
@@ -55,21 +53,28 @@ export default function Login() {
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
+      alert("Login successful ✅");
 
       console.log("🔐 TOKEN:", token);
       console.log("👤 USER:", user);
 
       // ✅ NAVIGATION FIX
-      if (data.is_onboarded) {
+      if (responseData?.is_onboarded) {
         navigate("/onboarding", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });
       }
 
     } catch (err) {
-      console.log("❌ Login error:", err.response?.data || err);
-      alert("Login failed. Check backend connection.");
-    } finally {
+        console.log("❌ Login error:", err.response?.data || err);
+
+        const message =
+          err?.response?.data?.error ||
+          err?.response?.data?.detail ||
+          "Invalid email or password";
+
+        alert(message);
+      } finally {
       setLoading(false);
     }
   };
@@ -80,7 +85,7 @@ export default function Login() {
     justifyContent: "center",
     alignItems: "center",
     height: "100vh",
-    background: "#f8f9fb"
+    background: "#ffe5e5"
   };
 
   const card = {

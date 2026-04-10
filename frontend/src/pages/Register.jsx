@@ -59,7 +59,7 @@ export default function Register() {
     justifyContent: "center",
     alignItems: "center",
     height: "100vh",
-    background: "#f8f9fb"
+    background: "#ffe5e5"
   };
 
   const card = {
