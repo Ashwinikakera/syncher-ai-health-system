@@ -80,7 +80,7 @@ class CycleLog(models.Model):
 
     MOOD_CHOICES       = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
     FLOW_CHOICES       = [('light', 'Light'), ('medium', 'Medium'), ('heavy', 'Heavy')]
-    STRESS_CHOICES     = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
+    STRESS_CHOICES     = [('none', 'None'),('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
     EXERCISE_CHOICES   = [('none', 'None'), ('light', 'Light'), ('moderate', 'Moderate'), ('intense', 'Intense')]
     MEDICATION_CHOICES = [('yes', 'Yes'), ('no', 'No')]
     HYDRATION_CHOICES  = [('yes', 'Yes'), ('no', 'No')]
