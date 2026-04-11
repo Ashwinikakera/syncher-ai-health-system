@@ -1,4 +1,4 @@
-from apps.cycle_app.models import CycleHistory
+from apps.cycle_app.models import CycleHistory, PredictionFeedback
 from apps.log_app.models import DailyLog, CycleLog
 
 
@@ -7,7 +7,6 @@ def get_user_data_for_ml(user):
     Collects all user data from DB and formats it
     for Dev3's ML prediction function.
     """
-    # Get all cycles
     cycles = CycleHistory.objects.filter(user=user).order_by('start_date')
     cycle_data = [
         {
@@ -18,24 +17,22 @@ def get_user_data_for_ml(user):
         for c in cycles
     ]
 
-    # Get last 30 daily logs
     logs = DailyLog.objects.filter(user=user).order_by('-date')[:30]
     log_data = [
         {
-            "date":             str(l.date),
-            "sleep":            l.sleep,
-            "stress":           l.stress,
-            "exercise":         l.exercise,
-            "medication":       l.medication,
-            "food":             l.food,
-            "white_discharge":  l.white_discharge,
-            "hydration":        l.hydration,
-            "symptoms":         l.symptoms
+            "date":            str(l.date),
+            "sleep":           l.sleep,
+            "stress":          l.stress,
+            "exercise":        l.exercise,
+            "medication":      l.medication,
+            "food":            l.food,
+            "white_discharge": l.white_discharge,
+            "hydration":       l.hydration,
+            "symptoms":        l.symptoms
         }
         for l in logs
     ]
 
-    # Get last 30 cycle logs (period days)
     cycle_logs = CycleLog.objects.filter(user=user).order_by('-date')[:30]
     cycle_log_data = [
         {
@@ -50,7 +47,6 @@ def get_user_data_for_ml(user):
         for cl in cycle_logs
     ]
 
-    # Get onboarding profile
     try:
         onboarding = user.onboarding
         profile_data = {
@@ -65,16 +61,13 @@ def get_user_data_for_ml(user):
             "flow":              onboarding.flow,
         }
     except Exception:
-        profile_data = {
-            "avg_cycle_length": 28
-        }
+        profile_data = {"avg_cycle_length": 28}
 
-    # Get health risk from MyHealth if available
     try:
-        health          = user.my_health
-        health_risk     = health.risk_level or "Unknown"
+        health      = user.my_health
+        health_risk = health.risk_level or "Unknown"
     except Exception:
-        health_risk     = "Unknown"
+        health_risk = "Unknown"
 
     return {
         "profile":    profile_data,
@@ -85,22 +78,21 @@ def get_user_data_for_ml(user):
     }
 
 
+def get_latest_feedback(user):
+    """
+    Gets the most recent prediction feedback from user.
+    Returns None if no feedback exists.
+    """
+    return PredictionFeedback.objects.filter(
+        user=user
+    ).order_by('-created_at').first()
+
+
 def get_dashboard_data(user):
     """
     Main function called by dashboard view.
-
-    Returns exact contract shape:
-    {
-        "next_period_date": "2024-03-29",
-        "ovulation_window": ["2024-03-14", "2024-03-16"],
-        "cycle_regularity_score": 0.85,
-        "predicted_length": 28,
-        "confidence": 0.78,
-        "health_insights": ["..."],
-        "health_risk": "Moderate",
-        "recent_symptoms": {"pain": 3, "mood": "low", "flow": "medium"},
-        "medical_history": {"condition": "PCOS", "notes": "..."}
-    }
+    Checks if user has submitted feedback and uses actual_date
+    to update predictions accordingly.
     """
     user_data = get_user_data_for_ml(user)
 
@@ -129,18 +121,20 @@ def get_dashboard_data(user):
         #     "health_risk":            user_data["health_risk"],
         #     "recent_symptoms":        prediction["recent_symptoms"],
         #     "medical_history":        prediction["medical_history"],
+        #     "feedback_submitted":     False,
         # }
         # -------------------------------------------------------
 
-        return _stub_dashboard_response(user_data)
+        return _stub_dashboard_response(user_data, user)
 
     except Exception as e:
-        return _stub_dashboard_response(user_data)
+        return _stub_dashboard_response(user_data, user)
 
 
-def _stub_dashboard_response(user_data):
+def _stub_dashboard_response(user_data, user):
     """
     Stub response until Dev3 ML is ready.
+    Uses actual_date from feedback if available.
     """
     from datetime import date, timedelta, datetime
 
@@ -148,15 +142,45 @@ def _stub_dashboard_response(user_data):
     avg_length = user_data["profile"].get("avg_cycle_length", 28)
     cycles     = user_data.get("cycles", [])
 
-    # Next period prediction
-    if cycles:
+    # Check if user has submitted feedback with actual date
+    latest_feedback = get_latest_feedback(user)
+
+    # Determine base date for prediction
+    # Priority: actual_date from feedback → last cycle start → today
+    if latest_feedback and not latest_feedback.prediction_correct:
+        # User corrected the date — use their actual date as base
+        base_date   = latest_feedback.actual_date
+        next_period = base_date + timedelta(days=avg_length)
+        feedback_submitted = True
+    elif latest_feedback and latest_feedback.prediction_correct:
+        # User confirmed prediction was correct
+        # Use the confirmed date as base
+        base_date   = latest_feedback.actual_date
+        next_period = base_date + timedelta(days=avg_length)
+        feedback_submitted = True
+    elif cycles:
+        # No feedback yet — predict from last cycle
         last_start  = cycles[-1]["start_date"]
         last_date   = datetime.strptime(last_start, "%Y-%m-%d").date()
         next_period = last_date + timedelta(days=avg_length)
+        feedback_submitted = False
     else:
-        next_period = today + timedelta(days=avg_length)
+        # No cycles at all — predict from today
+        next_period        = today + timedelta(days=avg_length)
+        feedback_submitted = False
 
-    # Ovulation window
+    # Check if there's a newer cycle after the feedback
+    # If yes — feedback is for old cycle, ask again for new cycle
+    if latest_feedback and cycles:
+        last_cycle_date = datetime.strptime(
+            cycles[-1]["start_date"], "%Y-%m-%d"
+        ).date()
+        if last_cycle_date > latest_feedback.actual_date:
+            # New cycle started after last feedback — reset feedback status
+            feedback_submitted = False
+            next_period = last_cycle_date + timedelta(days=avg_length)
+
+    # Ovulation window — 12-16 days before next period
     ovulation_start = next_period - timedelta(days=16)
     ovulation_end   = next_period - timedelta(days=12)
 
@@ -171,7 +195,7 @@ def _stub_dashboard_response(user_data):
     else:
         score = 0.75
 
-    # Basic insights from logs
+    # Insights from logs
     insights = []
     logs = user_data.get("logs", [])
     if logs:
@@ -211,5 +235,6 @@ def _stub_dashboard_response(user_data):
         "health_insights":        insights,
         "health_risk":            user_data.get("health_risk", "Unknown"),
         "recent_symptoms":        recent_symptoms,
-        "medical_history":        medical_history
+        "medical_history":        medical_history,
+        "feedback_submitted":     feedback_submitted  # ← tells frontend whether to show the question
     }
