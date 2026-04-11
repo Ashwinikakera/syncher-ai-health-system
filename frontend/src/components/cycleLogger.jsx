@@ -21,22 +21,29 @@ export default function CycleLogger() {
     }
 
     try {
+      // FIX: now calls /cycle/start/ with correct data
       await addCycle({ start_date: startDate });
+
+      localStorage.setItem(
+        "cycle",
+        JSON.stringify({
+          startDate,
+          isActive: true
+        })
+      );
+
+      alert("Cycle started ✅");
+      window.location.href = "/daily-logs";
+
     } catch (err) {
-      console.log("Demo mode");
+      // FIX: show actual error instead of silently ignoring
+      console.log("Cycle start error:", err);
+      alert(
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Failed to start cycle. Please try again."
+      );
     }
-
-    localStorage.setItem(
-      "cycle",
-      JSON.stringify({
-        startDate,
-        isActive: true
-      })
-    );
-
-    alert("Cycle started ✅");
-
-    window.location.href = "/daily-logs";
   };
 
   // 🔴 END CYCLE
@@ -44,19 +51,26 @@ export default function CycleLogger() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
+      // FIX: now sends end_date data
       await endCycle({ end_date: today });
+
+      localStorage.removeItem("cycle");
+
+      alert("Cycle ended ✅");
+      window.location.reload();
+
     } catch (err) {
-      console.log("Demo end");
+      // FIX: show actual error instead of silently ignoring
+      console.log("Cycle end error:", err);
+      alert(
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Failed to end cycle. Please try again."
+      );
     }
-
-    localStorage.removeItem("cycle");
-
-    alert("Cycle ended ✅");
-
-    window.location.reload();
   };
 
-  // ✅ NEW PAGE BACKGROUND
+  // ✅ PAGE STYLES
   const page = {
     minHeight: "100vh",
     background: "linear-gradient(135deg, #ffe5e5, #fff0f0)",
@@ -134,5 +148,3 @@ export default function CycleLogger() {
     </div>
   );
 }
-
-// This component handles cycle tracking by collecting start and end dates and sending them via cycleService, ensuring alignment with API contract while supporting demo fallback
