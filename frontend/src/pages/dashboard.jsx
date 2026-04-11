@@ -1,21 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { getDashboard } from "../services/dashboardService";
-
-
 import API from "../api/axios";
-
 import Chart from "../components/chart";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [risk, setRisk] = useState("");
-
-  // ✅ EXISTING
   const [isCorrect, setIsCorrect] = useState("");
-
-  // ✅ UPDATED STATES
   const [noOption, setNoOption] = useState("");
   const [manualDate, setManualDate] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   useEffect(() => {
     fetchDashboard();
@@ -26,14 +20,15 @@ export default function Dashboard() {
       const res = await getDashboard();
       const backendData = res.data || {};
 
-      // 🔥 DEBUG HERE
-      console.log("DATA TYPE:", typeof backendData.next_period_date);
-      console.log("VALUE:", backendData.next_period_date);
       console.log("FULL RESPONSE:", backendData);
-      
-      setRisk(backendData.risk || "Low");
+
+      setRisk(backendData.health_risk || "Low");
+
+      // Check if feedback already submitted for this cycle
+      setFeedbackSubmitted(backendData.feedback_submitted || false);
 
       const today = new Date();
+      const formatDate = (date) => date.toISOString().split("T")[0];
 
       const nextPeriod = new Date(today);
       nextPeriod.setDate(today.getDate() + 28);
@@ -43,9 +38,6 @@ export default function Dashboard() {
 
       const ovulationEnd = new Date(today);
       ovulationEnd.setDate(today.getDate() + 18);
-
-      const formatDate = (date) =>
-        date.toISOString().split("T")[0];
 
       const safeData = {
         next_period_date:
@@ -58,20 +50,20 @@ export default function Dashboard() {
           ],
 
         cycle_regularity_score:
-          backendData.cycle_regularity_score ||
-          (Math.random() * 0.5 + 0.5).toFixed(2),
+          backendData.cycle_regularity_score || 0.75,
+
+        predicted_length:
+          backendData.predicted_length || 28,
+
+        confidence:
+          backendData.confidence || 0.75,
 
         insights:
-          backendData.insights?.length > 0
-            ? backendData.insights
-            : [
-                "Your cycle is fairly regular",
-                "Maintain healthy lifestyle",
-                "Track logs for better accuracy"
-              ],
+          backendData.health_insights?.length > 0
+            ? backendData.health_insights
+            : ["Keep logging daily for better insights"],
 
-        last_cycles: backendData.last_cycles || [],
-        symptoms: backendData.symptoms || {},
+        recent_symptoms: backendData.recent_symptoms || {},
         medical_history: backendData.medical_history || {}
       };
 
@@ -79,27 +71,24 @@ export default function Dashboard() {
 
     } catch (err) {
       console.log(err);
-
       setData({
         next_period_date: "N/A",
         ovulation_window: ["N/A", "N/A"],
         cycle_regularity_score: 0,
+        predicted_length: 28,
+        confidence: 0,
         insights: ["Backend not connected"],
-        last_cycles: [],
-        symptoms: {},
+        recent_symptoms: {},
         medical_history: {}
       });
-
       setRisk("Low");
     }
   };
 
-  // ✅ FIXED SUBMIT FUNCTION
   const handleSubmit = async () => {
     try {
       let payload = null;
 
-      // ✅ YES FLOW
       if (isCorrect === "yes") {
         payload = {
           prediction_correct: true,
@@ -107,14 +96,9 @@ export default function Dashboard() {
         };
       }
 
-      // ❌ NO FLOW
       if (isCorrect === "no") {
         if (noOption === "other_date") {
-          if (!manualDate) {
-            alert("Please select date");
-            return;
-          }
-
+          if (!manualDate) { alert("Please select date"); return; }
           payload = {
             prediction_correct: false,
             actual_date: manualDate,
@@ -122,25 +106,21 @@ export default function Dashboard() {
         }
 
         if (noOption === "not_yet") {
+          const today = new Date().toISOString().split("T")[0];
           payload = {
             prediction_correct: false,
-            actual_date: null,
+            actual_date: today,
           };
         }
       }
 
-      // 🚨 PREVENT EMPTY CALL
-      if (!payload) {
-        alert("Please select an option");
-        return;
-      }
+      if (!payload) { alert("Please select an option"); return; }
 
-      // ✅ SINGLE API CALL
       await API.post("/prediction-feedback/", payload);
-
       alert("Feedback submitted ✅");
 
-      fetchDashboard();
+      // Refresh dashboard with updated predictions
+      await fetchDashboard();
 
       setIsCorrect("");
       setNoOption("");
@@ -148,169 +128,143 @@ export default function Dashboard() {
 
     } catch (err) {
       console.log("ERROR:", err.response?.data);
-      alert("Something went wrong ❌");
+      alert(err?.response?.data?.error || "Something went wrong ❌");
     }
   };
 
   const card = {
-    background: "#fff",
-    padding: "25px",
-    borderRadius: "12px",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
-    marginTop: "20px",
-    width: "100%",
-    boxSizing: "border-box"
+    background: "#fff", padding: "25px", borderRadius: "12px",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.08)", marginTop: "20px",
+    width: "100%", boxSizing: "border-box"
   };
 
   const inputStyle = {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "6px",
-    border: "1px solid #ccc",
-    marginTop: "8px"
+    width: "100%", padding: "10px", borderRadius: "6px",
+    border: "1px solid #ccc", marginTop: "8px"
+  };
+
+  const btnStyle = {
+    width: "100%", padding: "10px", borderRadius: "6px",
+    background: "#e60023", color: "#fff", border: "none",
+    marginTop: "8px", cursor: "pointer", fontWeight: "bold"
   };
 
   return (
-    <div
-      style={{
-        padding: "20px",
-        background: "#ffe5e5",
-        minHeight: "100vh"
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "950px",
-          margin: "0 auto"
-        }}
-      >
+    <div style={{ padding: "20px", background: "#ffe5e5", minHeight: "100vh" }}>
+      <div style={{ maxWidth: "950px", margin: "0 auto" }}>
 
         <div style={{
-          background: "#ff2d2d",
-          color: "#fff",
-          padding: "12px",
-          borderRadius: "8px",
-          marginBottom: "20px",
-          fontWeight: "bold",
-          textAlign: "center"
+          background: "#ff2d2d", color: "#fff", padding: "12px",
+          borderRadius: "8px", marginBottom: "20px",
+          fontWeight: "bold", textAlign: "center"
         }}>
           Welcome Back 👋
         </div>
 
-        <h2 style={{ marginBottom: "10px" }}>
-          Dashboard
-        </h2>
+        <h2 style={{ marginBottom: "10px" }}>Dashboard</h2>
 
         {data ? (
           <>
             <div style={card}>
-              <p>
-                <strong>Next Period:</strong> {data.next_period_date}
-              </p>
+              <p><strong>Next Period:</strong> {data.next_period_date}</p>
+              <p><strong>Predicted Length:</strong> {data.predicted_length} days</p>
+              <p><strong>Confidence:</strong> {Math.round(data.confidence * 100)}%</p>
+              <p><strong>High Fertility Range:</strong> {data.ovulation_window.join(" to ")}</p>
+              <p><strong>Regularity Score:</strong> {data.cycle_regularity_score}</p>
 
-              <select
-                style={inputStyle}
-                value={isCorrect}
-                onChange={(e) => {
-                  setIsCorrect(e.target.value);
-                  setNoOption("");
-                  setManualDate("");
-                }}
-              >
-                <option value="">Is this correct?</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
+              {/* FEEDBACK SECTION — only show if not yet submitted for this cycle */}
+              {!feedbackSubmitted ? (
+                <div style={{ marginTop: "15px", padding: "12px", background: "#fff5f5", borderRadius: "8px", border: "1px solid #ffcccc" }}>
+                  <p><strong>Was this prediction correct?</strong></p>
 
-              {/* ✅ YES BUTTON */}
-              {isCorrect === "yes" && (
-                <button style={inputStyle} onClick={handleSubmit}>
-                  Submit
-                </button>
-              )}
-
-              {/* NO FLOW */}
-              {isCorrect === "no" && (
-                <>
-                  <select
-                    style={inputStyle}
-                    value={noOption}
-                    onChange={(e) => setNoOption(e.target.value)}
-                  >
-                    <option value="">Select option</option>
-
-                    <option value="other_date">
-                      I got it on another date
-                    </option>
-
-                    <option value="not_yet">
-                      I haven't got my periods
-                    </option>
+                  <select style={inputStyle} value={isCorrect}
+                    onChange={(e) => {
+                      setIsCorrect(e.target.value);
+                      setNoOption("");
+                      setManualDate("");
+                    }}>
+                    <option value="">Select...</option>
+                    <option value="yes">Yes, it was correct</option>
+                    <option value="no">No, it was different</option>
                   </select>
 
-                  {noOption === "other_date" && (
-                    <>
-                      <input
-                        style={inputStyle}
-                        type="date"
-                        value={manualDate}
-                        onChange={(e) => setManualDate(e.target.value)}
-                      />
-
-                      <button style={inputStyle} onClick={handleSubmit}>
-                        Submit
-                      </button>
-                    </>
-                  )}
-
-                  {/* ✅ NOT YET BUTTON */}
-                  {noOption === "not_yet" && (
-                    <button style={inputStyle} onClick={handleSubmit}>
-                      Submit
+                  {isCorrect === "yes" && (
+                    <button style={btnStyle} onClick={handleSubmit}>
+                      Submit Feedback
                     </button>
                   )}
-                </>
+
+                  {isCorrect === "no" && (
+                    <>
+                      <select style={inputStyle} value={noOption}
+                        onChange={(e) => setNoOption(e.target.value)}>
+                        <option value="">Select option</option>
+                        <option value="other_date">I got it on another date</option>
+                        <option value="not_yet">I haven't got my period yet</option>
+                      </select>
+
+                      {noOption === "other_date" && (
+                        <>
+                          <input style={inputStyle} type="date" value={manualDate}
+                            onChange={(e) => setManualDate(e.target.value)} />
+                          <button style={btnStyle} onClick={handleSubmit}>
+                            Submit Feedback
+                          </button>
+                        </>
+                      )}
+
+                      {noOption === "not_yet" && (
+                        <button style={btnStyle} onClick={handleSubmit}>
+                          Submit Feedback
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                // Show confirmation that feedback was submitted
+                <div style={{ marginTop: "15px", padding: "12px", background: "#f0fff0", borderRadius: "8px", border: "1px solid #90ee90" }}>
+                  <p style={{ color: "green" }}>✅ Prediction feedback submitted. Dashboard will update after your next cycle.</p>
+                </div>
               )}
 
-              <p>
-                <strong>High Fertility Range:</strong>{" "}
-                {data.ovulation_window.join(" to ")}
-              </p>
-
-              <p>
-                <strong>Regularity Score:</strong>{" "}
-                {data.cycle_regularity_score}
-              </p>
-
-              <h3>Insights:</h3>
+              <h3 style={{ marginTop: "15px" }}>Insights:</h3>
               <ul>
                 {data.insights.map((item, index) => (
                   <li key={index}>{item}</li>
                 ))}
               </ul>
+
+              {/* Recent Symptoms */}
+              {data.recent_symptoms && Object.keys(data.recent_symptoms).length > 0 && (
+                <>
+                  <h3>Recent Symptoms:</h3>
+                  <p>Pain: {data.recent_symptoms.pain}</p>
+                  <p>Mood: {data.recent_symptoms.mood}</p>
+                  <p>Flow: {data.recent_symptoms.flow}</p>
+                </>
+              )}
+
+              {/* Medical History */}
+              {data.medical_history?.condition && data.medical_history.condition !== "None" && (
+                <>
+                  <h3>Medical History:</h3>
+                  <p>Condition: {data.medical_history.condition}</p>
+                  {data.medical_history.notes && <p>Notes: {data.medical_history.notes}</p>}
+                </>
+              )}
             </div>
 
             <div style={card}>
               <h3>Health Risk</h3>
-
-              {risk === "High" && (
-                <p style={{ color: "red" }}>⚠️ Consult Doctor</p>
-              )}
-
-              {risk === "Medium" && (
-                <p style={{ color: "orange" }}>
-                  Exercise + Diet recommended
-                </p>
-              )}
-
-              {risk === "Low" && (
-                <p style={{ color: "green" }}>You are healthy</p>
-              )}
+              {risk === "High" && <p style={{ color: "red" }}>⚠️ High Risk — Please consult a doctor</p>}
+              {risk === "Moderate" && <p style={{ color: "orange" }}>⚠️ Moderate Risk — Exercise + Diet recommended</p>}
+              {risk === "Low" && <p style={{ color: "green" }}>✅ Low Risk — You are healthy</p>}
+              {risk === "Unknown" && <p style={{ color: "gray" }}>Complete My Health questionnaire for risk assessment</p>}
             </div>
 
             <div style={card}>
               <h3 style={{ textAlign: "center" }}>Cycle Trend</h3>
-
               <div style={{ display: "flex", justifyContent: "center" }}>
                 <Chart
                   data={[
@@ -323,15 +277,11 @@ export default function Dashboard() {
                 />
               </div>
             </div>
-
           </>
         ) : (
           <p>Loading...</p>
         )}
-
       </div>
     </div>
   );
 }
-
-// This file fetches dashboard data from backend safely, displays real predictions and insights, prevents crashes using fallback defaults, integrates chart visualization (ready for real log data), and keeps full UI/UX stable for production use
