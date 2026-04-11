@@ -53,16 +53,17 @@ export default function Login() {
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
-      alert("Login successful ✅");
 
       console.log("🔐 TOKEN:", token);
       console.log("👤 USER:", user);
 
-      // ✅ NAVIGATION FIX
+      // ✅ FIX: reversed navigation logic
+      // is_onboarded = false → new user → go to onboarding
+      // is_onboarded = true  → existing user → go to dashboard
       if (responseData?.is_onboarded) {
-        navigate("/onboarding", { replace: true });
-      } else {
         navigate("/dashboard", { replace: true });
+      } else {
+        navigate("/onboarding", { replace: true });
       }
 
     } catch (err) {
@@ -146,7 +147,7 @@ export default function Login() {
         <br /><br />
 
         <p>
-          Don’t have an account?{" "}
+          Don't have an account?{" "}
           <span
             style={{
               color: "#e60023",
@@ -167,4 +168,5 @@ export default function Login() {
 // ✅ Uses ONLY real backend token
 // ✅ Prevents fake login
 // ✅ Fixes 401 Unauthorized issue
+// ✅ Fixes navigation — new users go to onboarding, existing to dashboard
 // ✅ Keeps UI and flow unchanged
