@@ -83,8 +83,8 @@ export default function Logger() {
     }
 
     if (cycle) {
-      if (!pain || pain < 1 || pain > 10) {
-        alert("Pain must be between 1 and 10");
+      if (!pain || pain < 1 || pain > 5) {
+        alert("Pain must be between 1 and 5");
         return;
       }
     }
@@ -196,7 +196,7 @@ export default function Logger() {
   return (
     <div style={pageWrapper}>
       <div style={card}>
-        <h3 style={{ marginBottom: "10px" }}>Cycle Logger</h3>
+        <h3 style={{ marginBottom: "10px" }}>Daily Logger</h3>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
@@ -291,7 +291,7 @@ export default function Logger() {
               </div>
 
               <select style={inputStyle} value={routine} onChange={(e) => setRoutine(e.target.value)}>
-                <option value="">Routine Change</option>
+                <option value="">Any Change in Routine? (Sleep / Food Time / Shift)</option>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </select>

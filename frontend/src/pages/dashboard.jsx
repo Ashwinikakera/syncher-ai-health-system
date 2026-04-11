@@ -1,14 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { getDashboard } from "../services/dashboardService";
 
+
+import API from "../api/axios";
+
 import Chart from "../components/chart";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [risk, setRisk] = useState("");
 
-  // ✅ NEW STATES
+  // ✅ EXISTING
   const [isCorrect, setIsCorrect] = useState("");
+
+  // ✅ UPDATED STATES
+  const [noOption, setNoOption] = useState("");
   const [manualDate, setManualDate] = useState("");
 
   useEffect(() => {
@@ -20,6 +26,11 @@ export default function Dashboard() {
       const res = await getDashboard();
       const backendData = res.data || {};
 
+      // 🔥 DEBUG HERE
+      console.log("DATA TYPE:", typeof backendData.next_period_date);
+      console.log("VALUE:", backendData.next_period_date);
+      console.log("FULL RESPONSE:", backendData);
+      
       setRisk(backendData.risk || "Low");
 
       const today = new Date();
@@ -83,6 +94,64 @@ export default function Dashboard() {
     }
   };
 
+  // ✅ FIXED SUBMIT FUNCTION
+  const handleSubmit = async () => {
+    try {
+      let payload = null;
+
+      // ✅ YES FLOW
+      if (isCorrect === "yes") {
+        payload = {
+          prediction_correct: true,
+          actual_date: data.next_period_date,
+        };
+      }
+
+      // ❌ NO FLOW
+      if (isCorrect === "no") {
+        if (noOption === "other_date") {
+          if (!manualDate) {
+            alert("Please select date");
+            return;
+          }
+
+          payload = {
+            prediction_correct: false,
+            actual_date: manualDate,
+          };
+        }
+
+        if (noOption === "not_yet") {
+          payload = {
+            prediction_correct: false,
+            actual_date: null,
+          };
+        }
+      }
+
+      // 🚨 PREVENT EMPTY CALL
+      if (!payload) {
+        alert("Please select an option");
+        return;
+      }
+
+      // ✅ SINGLE API CALL
+      await API.post("/prediction-feedback/", payload);
+
+      alert("Feedback submitted ✅");
+
+      fetchDashboard();
+
+      setIsCorrect("");
+      setNoOption("");
+      setManualDate("");
+
+    } catch (err) {
+      console.log("ERROR:", err.response?.data);
+      alert("Something went wrong ❌");
+    }
+  };
+
   const card = {
     background: "#fff",
     padding: "25px",
@@ -116,7 +185,6 @@ export default function Dashboard() {
         }}
       >
 
-        {/* ✅ WELCOME BACK (ONLY HERE) */}
         <div style={{
           background: "#ff2d2d",
           color: "#fff",
@@ -135,35 +203,77 @@ export default function Dashboard() {
 
         {data ? (
           <>
-            {/* MAIN INFO */}
             <div style={card}>
               <p>
                 <strong>Next Period:</strong> {data.next_period_date}
               </p>
 
-              {/* ✅ NEW YES / NO */}
               <select
                 style={inputStyle}
                 value={isCorrect}
-                onChange={(e) => setIsCorrect(e.target.value)}
+                onChange={(e) => {
+                  setIsCorrect(e.target.value);
+                  setNoOption("");
+                  setManualDate("");
+                }}
               >
                 <option value="">Is this correct?</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
               </select>
 
-              {/* ✅ SHOW DATE IF NO */}
+              {/* ✅ YES BUTTON */}
+              {isCorrect === "yes" && (
+                <button style={inputStyle} onClick={handleSubmit}>
+                  Submit
+                </button>
+              )}
+
+              {/* NO FLOW */}
               {isCorrect === "no" && (
-                <input
-                  style={inputStyle}
-                  type="date"
-                  value={manualDate}
-                  onChange={(e) => setManualDate(e.target.value)}
-                />
+                <>
+                  <select
+                    style={inputStyle}
+                    value={noOption}
+                    onChange={(e) => setNoOption(e.target.value)}
+                  >
+                    <option value="">Select option</option>
+
+                    <option value="other_date">
+                      I got it on another date
+                    </option>
+
+                    <option value="not_yet">
+                      I haven't got my periods
+                    </option>
+                  </select>
+
+                  {noOption === "other_date" && (
+                    <>
+                      <input
+                        style={inputStyle}
+                        type="date"
+                        value={manualDate}
+                        onChange={(e) => setManualDate(e.target.value)}
+                      />
+
+                      <button style={inputStyle} onClick={handleSubmit}>
+                        Submit
+                      </button>
+                    </>
+                  )}
+
+                  {/* ✅ NOT YET BUTTON */}
+                  {noOption === "not_yet" && (
+                    <button style={inputStyle} onClick={handleSubmit}>
+                      Submit
+                    </button>
+                  )}
+                </>
               )}
 
               <p>
-                <strong>Ovulation Window:</strong>{" "}
+                <strong>High Fertility Range:</strong>{" "}
                 {data.ovulation_window.join(" to ")}
               </p>
 
@@ -180,7 +290,6 @@ export default function Dashboard() {
               </ul>
             </div>
 
-            {/* HEALTH RISK */}
             <div style={card}>
               <h3>Health Risk</h3>
 
@@ -199,7 +308,6 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* GRAPH */}
             <div style={card}>
               <h3 style={{ textAlign: "center" }}>Cycle Trend</h3>
 
@@ -214,30 +322,6 @@ export default function Dashboard() {
                   ]}
                 />
               </div>
-            </div>
-
-
-
-            {/* SYMPTOMS */}
-            <div style={card}>
-              <h3>Recent Premenstrual Symptoms</h3>
-
-              <p><strong>Pain Level:</strong> {data.symptoms?.pain || "N/A"}/5</p>
-              <p><strong>Mood:</strong> {data.symptoms?.mood || "N/A"}</p>
-              <p><strong>Flow:</strong> {data.symptoms?.flow || "N/A"}</p>
-            </div>
-
-            {/* MEDICAL HISTORY */}
-            <div style={card}>
-              <h3>Medical History</h3>
-
-              <p><strong>Condition:</strong> {data.medical_history?.condition || "N/A"}</p>
-              <p><strong>Other:</strong> {data.medical_history?.other || "N/A"}</p>
-
-              <h4>Notes:</h4>
-              <p style={{ fontStyle: "italic" }}>
-                {data.medical_history?.notes || "No notes"}
-              </p>
             </div>
 
           </>
