@@ -83,6 +83,9 @@ export default function MyHealth() {
     try {
       setSubmitting(true);
 
+      const res = await API.post("/my-health/", form);
+
+      console.log("API RESPONSE:", res.data); // 🔥 DEBUG
       // FIX 1: removed /api/ prefix
       await API.post("/my-health/", form);
 
@@ -125,14 +128,16 @@ export default function MyHealth() {
     padding: "30px",
     borderRadius: "16px",
     width: "900px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.1)"
+    boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+    transition: "0.3s"
   };
 
   const accordionCard = {
     marginTop: "20px",
     borderRadius: "12px",
     boxShadow: "0 5px 15px rgba(0,0,0,0.08)",
-    padding: "15px"
+    padding: "15px",
+    transition: "0.3s",
   };
 
   const headingRow = {
@@ -149,6 +154,12 @@ export default function MyHealth() {
     height: "auto",
     objectFit: "contain",
     borderRadius: "10px"
+  };
+
+  const getScoreColor = (score) => {
+    if (score < 40) return "#28a745";
+    if (score < 70) return "#ffc107";
+    return "#dc3545";
   };
 
   const input = (q) => ({
@@ -191,6 +202,8 @@ export default function MyHealth() {
           {openSection === "A" && (
             <>
               <select name="q1" style={input("q1")} value={form.q1} onChange={(e)=>{handleChange("q1",e.target.value);setErrors(p=>({...p,q1:""}));}}>
+                <option value="">Acne severity (especially jawline/chin)?</option>
+                <option>None</option><option>Mild/occasional</option><option>Persistent/recurrent</option><option>Severe/cystic</option>
                 <option value="">Acne severity?</option>
                 <option>None</option>
                 <option>Mild/occasional</option>
@@ -200,6 +213,8 @@ export default function MyHealth() {
               {errors.q1 && <p style={{color:"red"}}>{errors.q1}</p>}
 
               <select name="q2" style={input("q2")} value={form.q2} onChange={(e)=>{handleChange("q2",e.target.value);setErrors(p=>({...p,q2:""}));}}>
+                <option value="">Excess facial/body hair (chin, upper lip, chest, abdomen)?</option>
+                <option>None</option><option>Mild</option><option>Moderate</option><option>Significant</option>
                 <option value="">Excess hair?</option>
                 <option>None</option>
                 <option>Mild</option>
@@ -209,6 +224,8 @@ export default function MyHealth() {
               {errors.q2 && <p style={{color:"red"}}>{errors.q2}</p>}
 
               <select name="q3" style={input("q3")} value={form.q3} onChange={(e)=>{handleChange("q3",e.target.value);setErrors(p=>({...p,q3:""}));}}>
+                <option value="">Hair thinning or hair fall (especially crown/front)?</option>
+                <option>No</option><option>Mild</option><option>Noticeable</option>
                 <option value="">Hair thinning?</option>
                 <option>No</option>
                 <option>Mild</option>
@@ -229,6 +246,8 @@ export default function MyHealth() {
           {openSection === "B" && (
             <>
               <select name="q4" style={input("q4")} value={form.q4} onChange={(e)=>{handleChange("q4",e.target.value);setErrors(p=>({...p,q4:""}));}}>
+                <option value="">Unexplained weight gain in last 6–12 months?</option>
+                <option>No</option><option>Mild (2–4 kg)</option><option>Moderate (5–8 kg)</option><option>Significant (&gt;8 kg)</option>
                 <option value="">Weight gain?</option>
                 <option>No</option>
                 {/* FIX 2: regular hyphen not en-dash */}
@@ -239,6 +258,8 @@ export default function MyHealth() {
               {errors.q4 && <p style={{color:"red"}}>{errors.q4}</p>}
 
               <select name="q5" style={input("q5")} value={form.q5} onChange={(e)=>{handleChange("q5",e.target.value);setErrors(p=>({...p,q5:""}));}}>
+                <option value="">Unexplained weight loss in last 6–12 months?</option>
+                <option>No</option><option>Mild (2–4 kg)</option><option>Moderate (5–8 kg)</option><option>Significant (&gt;8 kg)</option>
                 <option value="">Weight loss?</option>
                 <option>No</option>
                 {/* FIX 2: regular hyphen not en-dash */}
@@ -249,11 +270,25 @@ export default function MyHealth() {
               {errors.q5 && <p style={{color:"red"}}>{errors.q5}</p>}
 
               <select name="q6" style={input("q6")} value={form.q6} onChange={(e)=>{handleChange("q6",e.target.value);setErrors(p=>({...p,q6:""}));}}>
+                <option value="">Fat distribution mainly around abdomen (belly)?</option>
+                <option>No</option><option>Yes</option>
                 <option value="">Fat distribution?</option>
                 <option>No</option>
                 <option>Yes</option>
               </select>
               {errors.q6 && <p style={{color:"red"}}>{errors.q6}</p>}
+
+              <select name="q7" style={input("q7")} value={form.q7} onChange={(e)=>{handleChange("q7",e.target.value);setErrors(p=>({...p,q7:""}));}}>
+                <option value="">Dark patches on neck/armpits (acanthosis nigricans)?</option>
+                <option>No</option><option>Mild</option><option>Clear/Visible</option>
+              </select>
+              {errors.q7 && <p style={{color:"red"}}>{errors.q7}</p>}
+
+              <select name="q8" style={input("q8")} value={form.q8} onChange={(e)=>{handleChange("q8",e.target.value);setErrors(p=>({...p,q8:""}));}}>
+                <option value="">Energy after meals (especially carbs)?</option>
+                <option>Normal</option><option>Slight Sleepiness</option><option>Strong Fatigue/Crashes</option>
+              </select>
+              {errors.q8 && <p style={{color:"red"}}>{errors.q8}</p>}
             </>
           )}
         </div>
@@ -267,6 +302,9 @@ export default function MyHealth() {
 
           {openSection === "C" && (
             <>
+              <select name="q9" style={input("q9")} value={form.q9} onChange={(e)=>{handleChange("q9",e.target.value);setErrors(p=>({...p,q9:""}));}}>
+                <option value="">Physical Activity Level?</option>
+                <option>≥4 times/week</option><option>2–3 times/week</option><option>Rare/none</option>
               <select name="q7" style={input("q7")} value={form.q7} onChange={(e)=>{handleChange("q7",e.target.value);setErrors(p=>({...p,q7:""}));}}>
                 <option value="">Energy level?</option>
                 <option>Mild</option>
@@ -293,6 +331,8 @@ export default function MyHealth() {
               {errors.q9 && <p style={{color:"red"}}>{errors.q9}</p>}
 
               <select name="q10" style={input("q10")} value={form.q10} onChange={(e)=>{handleChange("q10",e.target.value);setErrors(p=>({...p,q10:""}));}}>
+                <option value="">Diet Pattern?</option>
+                <option>Mostly whole foods</option><option>Mixed</option><option>High sugar/processed/junk</option>
                 <option value="">Diet pattern?</option>
                 <option>Mostly whole foods</option>
                 <option>Mixed</option>
@@ -305,9 +345,22 @@ export default function MyHealth() {
 
         {/* BUTTONS */}
         <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-          <button style={{ flex: 1, padding: "12px", background: "#e60023", color: "#fff" }} onClick={handleSubmit}>
-            {submitting ? "Analyzing..." : "Analyze"}
-          </button>
+          <button
+            style={{
+            flex: 1,
+            padding: "14px",
+            background: submitting ? "#999" : "#e60023",
+            color: "#fff",
+            borderRadius: "10px",
+            fontWeight: "600",
+            cursor: submitting ? "not-allowed" : "pointer",
+            transition: "0.3s"
+          }}
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? "Analyzing... ⏳" : "Analyze 🔍"}
+        </button>
 
           <button style={{ flex: 1, padding: "12px", background: "#555", color: "#fff" }} onClick={handleClear}>
             Clear
@@ -329,8 +382,29 @@ export default function MyHealth() {
           >
             <h3>🧾 Health Analysis Result</h3>
 
-            <p><strong>Score:</strong> {result.score}</p>
+            <div style={{ marginTop: "15px" }}>
+              <strong>Health Score:</strong>
 
+              <div style={{
+                marginTop: "8px",
+                height: "12px",
+                width: "100%",
+                background: "#eee",
+                borderRadius: "10px",
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  height: "100%",
+                  width: `${result.score}%`,
+                  background: getScoreColor(result.score),
+                  transition: "width 0.7s ease"
+                }} />
+            </div>
+
+            <p style={{ marginTop: "5px", fontWeight: "600" }}>
+              {result.score}%
+            </p>
+          </div>
             <p>
               <strong>Risk Level:</strong>{" "}
               <span style={{
