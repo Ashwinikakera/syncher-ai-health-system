@@ -52,7 +52,9 @@ export default function Logger() {
   };
 
   const handleSubmit = async () => {
+
     if (!date) { alert("Please select date"); return; }
+
 
     try {
       if (cycle) {
@@ -148,9 +150,11 @@ export default function Logger() {
   return (
     <div style={pageWrapper}>
       <div style={card}>
+
         <h3 style={{ marginBottom: "10px" }}>
           {cycle ? "Cycle Logger (Period Day)" : "Daily Logger"}
         </h3>
+
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
