@@ -225,7 +225,7 @@ def _stub_dashboard_response(user_data, user):
         "condition": profile.get("medical_condition", "None"),
         "notes":     profile.get("medical_notes", "")
     }
-
+# returns
     return {
         "next_period_date":       str(next_period),
         "ovulation_window":       [str(ovulation_start), str(ovulation_end)],

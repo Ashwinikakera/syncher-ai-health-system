@@ -20,7 +20,7 @@ const styles = {
     height: "100vh"
   },
 
-  // 🔥 UPDATED SIDEBAR
+  // UPDATED SIDEBAR
   sidebar: {
     width: "220px",
 
@@ -30,7 +30,7 @@ const styles = {
     // SCROLL ENABLE
     overflowY: "auto",
 
-    // 🔴 RED GRADIENT
+    // RED GRADIENT
     background: "#ffe5e5",
 
     color: "#fff",

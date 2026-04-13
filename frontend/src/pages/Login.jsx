@@ -10,7 +10,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    console.log("🔥 LOGIN BUTTON CLICKED");
+    console.log(" LOGIN BUTTON CLICKED");
 
     if (!email || !password) {
       alert("Please enter email and password");
@@ -40,7 +40,7 @@ export default function Login() {
         return;
       }
 
-      // ✅ SMART DEFAULT
+      // SMART DEFAULT
       const onboardingCompleted =
         responseData?.onboardingCompleted === true ||
         responseData?.is_onboarded === true;

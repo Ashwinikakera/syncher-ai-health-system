@@ -6,7 +6,7 @@ const API = axios.create({
   timeout: 5000
 });
 
-// ✅ REQUEST INTERCEPTOR
+//  REQUEST INTERCEPTOR
 API.interceptors.request.use(
   (req) => {
     try {
@@ -14,14 +14,14 @@ API.interceptors.request.use(
 
       let token = localStorage.getItem("token");
 
-      // 🔥 AUTO CLEANUP
+      //  AUTO CLEANUP
       if (token === "demo-token") {
         console.warn("⚠️ Removing demo-token");
         localStorage.removeItem("token");
         token = null;
       }
 
-      // ✅ SEND TOKEN
+      // SEND TOKEN
       if (token) {
         req.headers.Authorization = `Bearer ${token}`;
         console.log("🔐 HEADER SENT:", req.headers.Authorization);
@@ -38,7 +38,7 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ RESPONSE INTERCEPTOR
+// RESPONSE INTERCEPTOR
 API.interceptors.response.use(
   (res) => res,
   (err) => {

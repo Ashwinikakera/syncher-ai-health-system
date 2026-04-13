@@ -6,6 +6,7 @@ from apps.cycle_app.views import (
     PredictionFeedbackView
 )
 
+# paths for cycle tracker
 urlpatterns = [
     path('cycle/start/',           CycleStartView.as_view(),          name='cycle-start'),
     path('cycle/end/',             CycleEndView.as_view(),            name='cycle-end'),

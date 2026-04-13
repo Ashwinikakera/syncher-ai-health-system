@@ -1,6 +1,6 @@
 import API from "../api/axios";
 
-// ✅ THIS IS CORRECT (matches backend)
+//  THIS IS CORRECT (matches backend)
 export const addLog = (data) => API.post("/daily-log/", data);
 
 export const getLogs = () => API.get("/daily-log/");
