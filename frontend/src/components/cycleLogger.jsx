@@ -131,6 +131,17 @@ export default function CycleLogger() {
             <button style={buttonStyle} onClick={handleStart}>
               Start Cycle
             </button>
+
+
+            <p style={{
+              marginTop: "12px",
+              fontSize: "12px",
+              color: "#666",
+              textAlign: "center",
+              lineHeight: "1.4"
+            }}>
+              ⚠️ This cycle tracker works based on the dates you provide. When you enter your cycle start date, the system will switch to cycle logging mode instead of daily logging. You must manually mark the end of your cycle when it finishes to ensure accurate tracking. If the cycle is not ended properly, predictions and logs may be inaccurate. This tool is for tracking purposes only and does not provide medical advice.
+            </p>
           </div>
         ) : (
           <div style={formGroup}>
