@@ -72,14 +72,11 @@ def stub_response(user_data, question):
 
 
 class ChatView(APIView):
-<<<<<<< HEAD
-=======
     """
     POST /api/chat
     Request:  { "question": "Why is my period late?" }
     Response: { "answer": "..." }
     """
->>>>>>> d98ae17 (dev 1 editing done)
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
