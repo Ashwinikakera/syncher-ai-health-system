@@ -1,192 +1,196 @@
-# ml_service/models/lstm.py
+"""
+ml_service/models/lstm.py
+LSTM model for cycle-length prediction using sequential cycle history.
+Uses TensorFlow/Keras. Falls back to regression if model not available.
 
-import os
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3" #suppress tensorflow 
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+FIX:
+  predict_confidence: changed variance divisor from 80.0 → 100.0 to match
+  regression.py, so confidence is consistent regardless of which model fires.
+  With 80.0, the same user with variance=40 got LSTM conf=0.55 but
+  regression conf=0.60 — inconsistent dashboard display.
+"""
+
+import logging
+import pickle
+from pathlib import Path
+from typing import Optional, Tuple
 
 import numpy as np
-import joblib
 
-import tensorflow as tf
-tf.get_logger().setLevel("ERROR")
-LSTM_MODEL_PATH  = "ml_service/saved_models/lstm_model.keras"
-SCALER_PATH      = "ml_service/saved_models/lstm_scaler.pkl"
-SEQUENCE_LENGTH  = 3   # how many past cycles to look at
+from config import (
+    LSTM_MODEL_PATH, LSTM_SCALER_PATH,
+    LSTM_SEQUENCE_LEN, LSTM_EPOCHS, LSTM_BATCH_SIZE, LSTM_UNITS,
+    FEATURE_COLUMNS,
+)
+
+logger = logging.getLogger(__name__)
+
+try:
+    import tensorflow as tf
+    from tensorflow.keras.models import Sequential, load_model
+    from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+    from tensorflow.keras.optimizers import Adam
+    TF_AVAILABLE = True
+except ImportError:
+    TF_AVAILABLE = False
+    logger.warning("TensorFlow not installed. LSTM model unavailable.")
 
 
-def _generate_sequence_data(n_users: int = 100, cycles_per_user: int = 12):
+class CycleLSTMModel:
     """
-    Generates synthetic sequential cycle data to train LSTM.
-
-    Each sample = sequence of SEQUENCE_LENGTH past cycles
-    Each timestep features:
-        [cycle_length, period_length, avg_pain, avg_stress, avg_sleep]
-
-    Target = next cycle length
+    LSTM model that predicts next cycle length from a sequence of past cycles.
+    Input shape:  (batch, LSTM_SEQUENCE_LEN, n_features)
+    Output shape: (batch, 1) — next cycle length in days
     """
-    np.random.seed(42)
 
-    X_all, y_all = [], []
+    def __init__(self):
+        self.model:      Optional[object] = None
+        self.scaler:     Optional[object] = None
+        self.is_trained: bool = False
+        self.n_features: int  = len(FEATURE_COLUMNS)
+        self._load()
 
-    for _ in range(n_users):
-        # Each user has a base cycle length with personal variation
-        base_cycle  = np.random.normal(28, 3)
-        stress_bias = np.random.uniform(0, 2)
+    # ─── Persistence ──────────────────────────────────────────────────────────
 
-        cycles = []
-        for i in range(cycles_per_user):
-            stress      = np.random.uniform(2, 9)
-            sleep       = np.random.uniform(4, 9)
-            pain        = np.random.uniform(1, 8)
-            period_len  = np.random.normal(5, 1)
-            cycle_len   = (
-                base_cycle
-                + (stress - 5) * 0.4
-                - (sleep - 7)  * 0.3
-                + stress_bias
-                + np.random.normal(0, 1)
-            )
-            cycles.append([
-                np.clip(cycle_len, 21, 45),
-                np.clip(period_len, 2, 9),
-                np.clip(pain, 1, 10),
-                np.clip(stress, 1, 10),
-                np.clip(sleep, 3, 10),
-            ])
+    def _load(self):
+        if not TF_AVAILABLE:
+            return
+        model_path  = Path(LSTM_MODEL_PATH)
+        scaler_path = Path(LSTM_SCALER_PATH)
 
-        # Build sequences
-        cycles = np.array(cycles)
-        for i in range(len(cycles) - SEQUENCE_LENGTH):
-            X_all.append(cycles[i : i + SEQUENCE_LENGTH])
-            y_all.append(cycles[i + SEQUENCE_LENGTH][0])  # next cycle_length
+        if model_path.exists() and scaler_path.exists():
+            try:
+                self.model = load_model(str(model_path))
+                with open(scaler_path, "rb") as f:
+                    self.scaler = pickle.load(f)
+                self.is_trained = True
+                logger.info("LSTM model loaded from %s", model_path)
+            except Exception as exc:
+                logger.warning("Failed to load LSTM model: %s", exc)
+                self.model      = None
+                self.scaler     = None
+                self.is_trained = False
 
-    return np.array(X_all), np.array(y_all)
+    def save(self):
+        if not TF_AVAILABLE or self.model is None:
+            return
+        Path(LSTM_MODEL_PATH).parent.mkdir(exist_ok=True)
+        self.model.save(str(LSTM_MODEL_PATH))
+        with open(LSTM_SCALER_PATH, "wb") as f:
+            pickle.dump(self.scaler, f)
+        logger.info("LSTM model saved.")
 
+    # ─── Architecture ─────────────────────────────────────────────────────────
 
-def train_and_save():
-    """Build, train, and save the LSTM model."""
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Dropout
-    from tensorflow.keras.callbacks import EarlyStopping
-    from sklearn.preprocessing import MinMaxScaler
-    from sklearn.model_selection import train_test_split
+    def _build_model(self) -> "Sequential":
+        model = Sequential([
+            LSTM(LSTM_UNITS, input_shape=(LSTM_SEQUENCE_LEN, self.n_features),
+                 return_sequences=True),
+            BatchNormalization(),
+            Dropout(0.2),
+            LSTM(LSTM_UNITS // 2, return_sequences=False),
+            BatchNormalization(),
+            Dropout(0.2),
+            Dense(32, activation="relu"),
+            Dense(1,  activation="linear"),
+        ])
+        model.compile(
+            optimizer=Adam(learning_rate=1e-3),
+            loss="huber",
+            metrics=["mae"],
+        )
+        return model
 
-    print("🔧 Training LSTM model...")
+    # ─── Training ─────────────────────────────────────────────────────────────
 
-    X, y = _generate_sequence_data(n_users=150, cycles_per_user=12)
+    def train(
+        self,
+        X: np.ndarray,   # (n_samples, seq_len, n_features)
+        y: np.ndarray,   # (n_samples,)
+    ) -> dict:
+        """
+        Trains (or retrains) the LSTM model.
+        X must already be shaped (samples, LSTM_SEQUENCE_LEN, n_features).
+        """
+        if not TF_AVAILABLE:
+            raise RuntimeError("TensorFlow is required to train the LSTM model.")
 
-    # ── Scale features ────────────────────────────────────────────
-    n_samples, seq_len, n_features = X.shape
-    X_flat   = X.reshape(-1, n_features)
-    scaler   = MinMaxScaler()
-    X_scaled = scaler.fit_transform(X_flat).reshape(n_samples, seq_len, n_features)
-    y_scaled = y / 45.0   # normalize target to 0–1
+        from sklearn.preprocessing import MinMaxScaler
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled, y_scaled, test_size=0.2, random_state=42
-    )
+        n_samples, seq_len, n_feat = X.shape
+        X_flat   = X.reshape(-1, n_feat)
+        self.scaler = MinMaxScaler()
+        X_scaled = self.scaler.fit_transform(X_flat).reshape(n_samples, seq_len, n_feat)
 
-    # ── Build LSTM ────────────────────────────────────────────────
-    model = Sequential([
-        LSTM(64, input_shape=(seq_len, n_features), return_sequences=True),
-        Dropout(0.2),
-        LSTM(32, return_sequences=False),
-        Dropout(0.2),
-        Dense(16, activation="relu"),
-        Dense(1),
-    ])
+        y_scaled = (y - 21.0) / (45.0 - 21.0)
 
-    model.compile(optimizer="adam", loss="mse", metrics=["mae"])
+        self.model = self._build_model()
 
-    early_stop = EarlyStopping(
-        monitor="val_loss", patience=5, restore_best_weights=True
-    )
+        callbacks = [
+            EarlyStopping(monitor="val_loss", patience=8, restore_best_weights=True),
+            ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=4, min_lr=1e-6),
+        ]
 
-    print("  Training in progress...")
-    model.fit(
-        X_train, y_train,
-        epochs=50,
-        batch_size=16,
-        validation_split=0.1,
-        callbacks=[early_stop],
-        verbose=0,
-    )
+        val_split = 0.2 if len(X) >= 10 else 0.0
 
-    # ── Evaluate ──────────────────────────────────────────────────
-    _, mae = model.evaluate(X_test, y_test, verbose=0)
-    mae_days = mae * 45.0
-    print(f"  ✅ LSTM trained — MAE: {mae_days:.2f} days")
+        history = self.model.fit(
+            X_scaled, y_scaled,
+            epochs=LSTM_EPOCHS,
+            batch_size=LSTM_BATCH_SIZE,
+            validation_split=val_split,
+            callbacks=callbacks,
+            verbose=0,
+        )
 
-    # ── Save model + scaler ───────────────────────────────────────
-    os.makedirs("ml_service/saved_models", exist_ok=True)
-    model.save(LSTM_MODEL_PATH)
-    joblib.dump(scaler, SCALER_PATH)
-    print(f"  ✅ LSTM saved  → {LSTM_MODEL_PATH}")
-    print(f"  ✅ Scaler saved → {SCALER_PATH}")
+        self.is_trained = True
+        self.save()
 
-    return model, scaler
+        y_pred_scaled = self.model.predict(X_scaled, verbose=0).flatten()
+        y_pred = y_pred_scaled * (45.0 - 21.0) + 21.0
+        mae    = float(np.mean(np.abs(y - y_pred)))
+        rmse   = float(np.sqrt(np.mean((y - y_pred) ** 2)))
 
+        logger.info("LSTM trained — MAE=%.2f RMSE=%.2f", mae, rmse)
+        return {"mae": mae, "rmse": rmse}
 
-def load_lstm():
-    """Load LSTM model + scaler from disk. Train fresh if not found."""
-    from tensorflow.keras.models import load_model
+    # ─── Inference ────────────────────────────────────────────────────────────
 
-    if not os.path.exists(LSTM_MODEL_PATH) or not os.path.exists(SCALER_PATH):
-        print("  ⚠️  No saved LSTM found — training fresh...")
-        return train_and_save()
+    def predict_cycle_length(self, sequence: np.ndarray) -> Optional[float]:
+        """
+        sequence shape: (1, LSTM_SEQUENCE_LEN, n_features)
+        Returns next cycle length (days) or None.
+        """
+        if not self.is_trained or self.model is None or self.scaler is None:
+            logger.warning("LSTM model not trained. Cannot predict.")
+            return None
+        if not TF_AVAILABLE:
+            return None
 
-    model  = load_model(LSTM_MODEL_PATH)
-    scaler = joblib.load(SCALER_PATH)
-    print(f"  ✅ LSTM loaded from {LSTM_MODEL_PATH}")
-    return model, scaler
+        try:
+            _, seq_len, n_feat = sequence.shape
+            seq_flat    = sequence.reshape(-1, n_feat)
+            seq_scaled  = self.scaler.transform(seq_flat).reshape(1, seq_len, n_feat)
+            pred_scaled = float(self.model.predict(seq_scaled, verbose=0)[0][0])
+            pred        = pred_scaled * (45.0 - 21.0) + 21.0
+            return float(np.clip(pred, 21.0, 45.0))
+        except Exception as exc:
+            logger.error("LSTM predict failed: %s", exc)
+            return None
 
+    def predict_confidence(self, feature_vector: np.ndarray) -> float:
+        """
+        Confidence based on cycle_variance from the last step of the sequence.
 
-def predict_with_lstm(model, scaler, cycle_records: list) -> tuple[float, float]:
-    """
-    Predict next cycle length using LSTM.
-
-    Args:
-        model:          trained Keras LSTM model
-        scaler:         fitted MinMaxScaler
-        cycle_records:  list of raw cycle dicts (needs at least 3)
-
-    Returns:
-        (predicted_cycle_length, confidence_score)
-    """
-    from ml_service.preprocessing.cleaning import clean_cycle_data
-
-    df = clean_cycle_data(cycle_records)
-
-    required_cols = ["cycle_length", "period_length"]
-    for col in required_cols:
-        if col not in df.columns:
-            df[col] = 28 if col == "cycle_length" else 5
-
-    # Fill symptom columns with neutral defaults if not present
-    for col, default in [("avg_pain", 3.0), ("avg_stress", 4.0), ("avg_sleep", 7.0)]:
-        if col not in df.columns:
-            df[col] = default
-
-    # Build sequence — use last SEQUENCE_LENGTH cycles
-    sequence_data = df[["cycle_length", "period_length",
-                         "avg_pain", "avg_stress", "avg_sleep"]].tail(SEQUENCE_LENGTH)
-
-    # Pad with mean values if fewer than SEQUENCE_LENGTH cycles
-    while len(sequence_data) < SEQUENCE_LENGTH:
-        mean_row = sequence_data.mean()
-        sequence_data = sequence_data._append(mean_row, ignore_index=True)
-
-    # Scale
-    X_flat   = sequence_data.values
-    X_scaled = scaler.transform(X_flat).reshape(1, SEQUENCE_LENGTH, X_flat.shape[1])
-
-    # Predict
-    y_pred_scaled = model.predict(X_scaled, verbose=0)[0][0]
-    predicted_length = float(y_pred_scaled * 45.0)
-    predicted_length = round(max(21.0, min(45.0, predicted_length)), 1)
-
-    # Confidence: based on how consistent the input sequence is
-    std = float(sequence_data["cycle_length"].std())
-    confidence = round(max(0.0, 1.0 - (std / 14.0)), 2)  # 14 = max expected std
-
-    return predicted_length, confidence
+        FIX: divisor changed from 80.0 → 100.0 to match regression.py,
+        ensuring consistent confidence values across models for same user data.
+        """
+        if not self.is_trained:
+            return 0.5
+        try:
+            var_idx  = FEATURE_COLUMNS.index("cycle_variance")
+            variance = float(feature_vector.flatten()[-len(FEATURE_COLUMNS) + var_idx])
+            # FIX: was 80.0, now 100.0 — unified with regression.py
+            return round(max(0.55, min(0.95, 1.0 - (variance / 100.0))), 2)
+        except Exception:
+            return 0.65

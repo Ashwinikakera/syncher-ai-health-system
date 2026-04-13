@@ -1,158 +1,201 @@
-# ml_service/data/db_fetcher.py
-# Fetches real user data from Dev1's Django REST API
-# Called by: training pipeline, retrain trigger, predict()
+"""
+ml_service/data/db_fetcher.py
+Fetches all user-related data from Django's PostgreSQL database.
+Dev3 reads only — never writes to DB (Django owns all writes).
 
-import requests
-from ml_service.config import DJANGO_API_BASE_URL, DJANGO_INTERNAL_TOKEN
+FIXES:
+  1. fetch_cycle_history: changed ORDER BY to ASC so cycles arrive
+     oldest-first. predict.py and feature_extraction both rely on
+     cleaned_cycles[-1] being the MOST RECENT cycle. DESC order
+     made [-1] the OLDEST, producing next_period_date in the past.
+
+  2. Table names corrected to match Django app structure visible in
+     screenshot (auth_app folder, not user_app):
+       user_app_userprofile    → auth_app_userprofile
+       user_app_myhealthresponse → auth_app_myhealthresponse
+"""
+
+import logging
+from typing import Optional
+import psycopg2
+import psycopg2.extras
+from config import DJANGO_DB
+
+logger = logging.getLogger(__name__)
 
 
-HEADERS = {
-    "Authorization": f"Token {DJANGO_INTERNAL_TOKEN}",
-    "Content-Type": "application/json",
-}
+def _get_connection():
+    """Open a new psycopg2 connection to the Django DB."""
+    return psycopg2.connect(
+        host=DJANGO_DB["host"],
+        port=DJANGO_DB["port"],
+        dbname=DJANGO_DB["name"],
+        user=DJANGO_DB["user"],
+        password=DJANGO_DB["password"],
+        cursor_factory=psycopg2.extras.RealDictCursor,
+    )
 
 
-# ── Fetch functions ───────────────────────────────────────────────────────────
-
-def fetch_cycle_records(user_id: int) -> list[dict]:
+def fetch_user_profile(user_id: int) -> Optional[dict]:
     """
-    Fetches cycle records for a specific user from Dev1's API.
-    Maps Django field names → ML service field names.
+    Returns age, weight, medical_condition, medical_notes, avg_cycle_length.
+    Returns None if user not found.
 
-    Returns:
-        [{"start_date": "2024-01-01", "cycle_length": 28}, ...]
+    FIX: table renamed from user_app_userprofile → auth_app_userprofile
+    """
+    sql = """
+        SELECT u.id, u.email, up.age, up.weight,
+               up.medical_condition, up.medical_notes,
+               up.avg_cycle_length
+        FROM   auth_user u
+        JOIN   auth_app_userprofile up ON up.user_id = u.id
+        WHERE  u.id = %s
+        LIMIT  1
     """
     try:
-        response = requests.get(
-            f"{DJANGO_API_BASE_URL}/api/cycle/",
-            headers=HEADERS,
-            params={"user_id": user_id},
-            timeout=5,
-        )
-        response.raise_for_status()
-        raw = response.json()
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (user_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+    except Exception as exc:
+        logger.error("fetch_user_profile failed for user %s: %s", user_id, exc)
+        return None
 
-        # Normalize field names to what ML service expects
-        return [
-            {
-                "start_date":   r.get("cycle_start_date") or r.get("start_date"),
-                "cycle_length": r.get("cycle_length"),
-            }
-            for r in raw
-            if r.get("cycle_length")  # skip incomplete records
-        ]
 
-    except requests.RequestException as e:
-        print(f"  [db_fetcher] Could not fetch cycle records: {e}")
+def fetch_cycle_history(user_id: int, limit: int = 6) -> list[dict]:
+    """
+    Returns the most recent `limit` completed cycles (start_date + end_date).
+
+    FIX: ORDER BY changed from DESC → ASC.
+    All downstream consumers (clean_cycle_history, derive_cycle_lengths,
+    build_lstm_sequence) expect oldest-first order so that:
+      - cleaned_cycles[-1]  = most recent cycle  (used for last_start in predict.py)
+      - cycle_lengths list  = [oldest→newest]    (used for _pad, variance)
+      - LSTM sequence steps = [oldest→newest]    (time-series order)
+    """
+    sql = """
+        SELECT start_date, end_date
+        FROM   cycle_app_cycle
+        WHERE  user_id = %s
+          AND  end_date IS NOT NULL
+        ORDER  BY start_date ASC
+        LIMIT  %s
+    """
+    try:
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (user_id, limit))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("fetch_cycle_history failed for user %s: %s", user_id, exc)
         return []
 
 
-def fetch_daily_logs(user_id: int) -> list[dict]:
+def fetch_recent_cycle_logs(user_id: int, limit: int = 10) -> list[dict]:
     """
-    Fetches daily log records for a specific user.
-
-    Returns:
-        [{"date": "2024-01-05", "pain": 6, "mood": "low",
-          "flow": "heavy", "sleep": 7, "stress": "medium",
-          "exercise": "light"}, ...]
+    Returns recent cycle-day logs (pain, mood, flow, sleep, stress, exercise,
+    medication, hydration) for the user.
+    """
+    sql = """
+        SELECT date, pain, mood, flow, sleep, stress, exercise,
+               medication, medication_details, hydration
+        FROM   log_app_cyclelog
+        WHERE  user_id = %s
+        ORDER  BY date DESC
+        LIMIT  %s
     """
     try:
-        response = requests.get(
-            f"{DJANGO_API_BASE_URL}/api/daily-log/",
-            headers=HEADERS,
-            params={"user_id": user_id},
-            timeout=5,
-        )
-        response.raise_for_status()
-        return response.json()
-
-    except requests.RequestException as e:
-        print(f"  [db_fetcher] Could not fetch daily logs: {e}")
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (user_id, limit))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("fetch_recent_cycle_logs failed for user %s: %s", user_id, exc)
         return []
 
 
-def fetch_all_users_training_data() -> list[dict]:
+def fetch_recent_daily_logs(user_id: int, limit: int = 10) -> list[dict]:
     """
-    Fetches training data across ALL users for model retraining.
-    Each record = one completed cycle with symptom averages.
-
-    Returns:
-        [
-            {
-                "avg_cycle_length":   28.5,
-                "std_cycle_length":   2.1,
-                "avg_period_length":  5.0,
-                "avg_pain":           4.2,
-                "avg_stress":         3.8,
-                "avg_sleep":          7.1,
-                "actual_next_length": 29,   ← ground truth
-            },
-            ...
-        ]
+    Returns recent non-cycle daily logs (sleep, stress, exercise, food,
+    medication, routine_change, white_discharge, hydration, symptoms).
+    """
+    sql = """
+        SELECT date, sleep, stress, exercise, food,
+               medication, medication_details,
+               routine_change, routine_details,
+               white_discharge, hydration, symptoms
+        FROM   log_app_dailylog
+        WHERE  user_id = %s
+        ORDER  BY date DESC
+        LIMIT  %s
     """
     try:
-        response = requests.get(
-            f"{DJANGO_API_BASE_URL}/api/ml/training-data/",
-            headers=HEADERS,
-            timeout=10,
-        )
-        response.raise_for_status()
-        raw = response.json()
-
-        # Filter out records missing the label
-        return [r for r in raw if r.get("actual_next_length")]
-
-    except requests.RequestException as e:
-        print(f"  [db_fetcher] Could not fetch training data: {e}")
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (user_id, limit))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("fetch_recent_daily_logs failed for user %s: %s", user_id, exc)
         return []
 
 
-def fetch_user_data_for_predict(user_id: int) -> dict:
+def fetch_my_health_responses(user_id: int) -> Optional[dict]:
     """
-    Master function — builds the full user_data dict that predict() expects.
-    Called by Dev1's dashboard_app/services.py indirectly.
+    Returns the latest My Health questionnaire responses for the user.
 
-    Returns:
-        {
-            "cycle_records": [...],
-            "log_records":   [...],
-        }
+    FIX: table renamed from user_app_myhealthresponse → auth_app_myhealthresponse
+    """
+    sql = """
+        SELECT q1, q2, q3, q4, q5, q6, q7, q8, q9, q10,
+               score, risk_level, created_at
+        FROM   auth_app_myhealthresponse
+        WHERE  user_id = %s
+        ORDER  BY created_at DESC
+        LIMIT  1
+    """
+    try:
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (user_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+    except Exception as exc:
+        logger.error("fetch_my_health_responses failed for user %s: %s", user_id, exc)
+        return None
+
+
+def fetch_prediction_feedback(user_id: int, limit: int = 5) -> list[dict]:
+    """
+    Returns past prediction feedback rows (predicted vs actual dates).
+    Used by retrain pipeline.
+    """
+    sql = """
+        SELECT predicted_date, actual_date, prediction_correct, created_at
+        FROM   cycle_app_predictionfeedback
+        WHERE  user_id = %s
+        ORDER  BY created_at DESC
+        LIMIT  %s
+    """
+    try:
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (user_id, limit))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("fetch_prediction_feedback failed for user %s: %s", user_id, exc)
+        return []
+
+
+def fetch_full_user_context(user_id: int) -> dict:
+    """
+    Convenience method — returns all data needed for health_engine and
+    dashboard in a single call. Always returns a dict (empty sub-keys on error).
     """
     return {
-        "cycle_records": fetch_cycle_records(user_id),
-        "log_records":   fetch_daily_logs(user_id),
-    }
-
-
-# ── Data sufficiency check ────────────────────────────────────────────────────
-
-def has_enough_data(user_id: int) -> dict:
-    """
-    Quick check before running predict() — tells caller if user has
-    enough data for a reliable prediction.
-
-    Returns:
-        {
-            "can_predict":    bool,
-            "cycle_count":    int,
-            "log_count":      int,
-            "reason":         str,
-        }
-    """
-    cycles = fetch_cycle_records(user_id)
-    logs   = fetch_daily_logs(user_id)
-
-    if len(cycles) < 2:
-        return {
-            "can_predict": False,
-            "cycle_count": len(cycles),
-            "log_count":   len(logs),
-            "reason": "Need at least 2 cycle records for a basic prediction.",
-        }
-
-    return {
-        "can_predict": True,
-        "cycle_count": len(cycles),
-        "log_count":   len(logs),
-        "reason": "Sufficient data available.",
+        "profile":       fetch_user_profile(user_id)       or {},
+        "cycle_history": fetch_cycle_history(user_id)      or [],
+        "cycle_logs":    fetch_recent_cycle_logs(user_id)   or [],
+        "daily_logs":    fetch_recent_daily_logs(user_id)   or [],
+        "my_health":     fetch_my_health_responses(user_id) or {},
     }

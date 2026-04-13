@@ -17,22 +17,46 @@ const styles = {
     background: "#f8f9fb",
     height: "100vh"
   },
+
+  // 🔥 UPDATED SIDEBAR
   sidebar: {
     width: "220px",
-    background: "#ffffff",
+
+    // FULL HEIGHT
+    height: "100vh",
+
+    // SCROLL ENABLE
+    overflowY: "auto",
+
+    // 🔴 RED GRADIENT
+    background: "#ffe5e5",
+
+    color: "#fff",
+
     padding: "20px",
-    borderRight: "1px solid #eee"
+    boxSizing: "border-box",
+
+    // FIX POSITION
+    position: "fixed",
+    left: 0,
+    top: 0
   },
+
+  // 🔥 SHIFT MAIN CONTENT
   main: {
     flex: 1,
-    padding: "20px"
+    padding: "20px",
+    marginLeft: "220px" // IMPORTANT FIX
   },
+
+  // 🔴 MATCH NAVBAR COLOR
   navbar: {
-    background: "#fff",
+    background: "linear-gradient(135deg, #ff4d4d, #ff1a1a)",
+    color: "#fff",
     padding: "15px",
     borderRadius: "10px",
     marginBottom: "20px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
   }
 };
 
@@ -42,28 +66,26 @@ function Layout({ children }) {
   return (
     <div style={styles.app}>
       <div style={styles.sidebar}>
-        <h2 style={{ color: "#e60023" }}>SYNCHER</h2>
+        <h2 style={{ color: "#ff4d4d" }}>SYNCHER</h2>
 
-        {/* ✅ FIXED NAVIGATION */}
-        <p style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard")}>
+        <p style={{ cursor: "pointer", color: "black"}} onClick={() => navigate("/dashboard")}>
           Dashboard
         </p>
 
-        <p style={{ cursor: "pointer" }} onClick={() => navigate("/cycle-tracker")}>
+        <p style={{ cursor: "pointer", color: "black" }} onClick={() => navigate("/cycle-tracker")}>
           Cycle Tracker
         </p>
 
-        <p style={{ cursor: "pointer" }} onClick={() => navigate("/daily-logs")}>
+        <p style={{ cursor: "pointer", color: "black" }} onClick={() => navigate("/daily-logs")}>
           Daily Logs
         </p>
 
-        <p style={{ cursor: "pointer" }} onClick={() => navigate("/ai-assistant")}>
+        <p style={{ cursor: "pointer", color: "black" }} onClick={() => navigate("/ai-assistant")}>
           AI Assistant
         </p>
 
-        {/* Logout */}
         <p
-          style={{ color: "red", cursor: "pointer" }}
+          style={{ color: "#ff4d4d", cursor: "pointer", marginTop: "20px", fontWeight: "bold" }}
           onClick={() => {
             localStorage.removeItem("token");
             localStorage.removeItem("user");

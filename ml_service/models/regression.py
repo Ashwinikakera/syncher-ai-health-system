@@ -1,100 +1,131 @@
-# ml_service/models/regression.py
+"""
+ml_service/models/regression.py
+Linear Regression wrapper for next-period-date prediction.
+Trains on (feature_vector → days_to_next_period) pairs.
+"""
+
+import logging
+import pickle
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
-import joblib
-import os
-from datetime import datetime, timedelta
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import cross_val_score
 
-MODEL_PATH = "ml_service/saved_models/regression.pkl"
+from config import REGRESSION_MODEL_PATH, REGRESSION_MIN_CYCLES, FEATURE_COLUMNS
+
+logger = logging.getLogger(__name__)
 
 
-def _generate_synthetic_training_data(n_samples: int = 200):
+class CycleRegressionModel:
     """
-    Generates synthetic training data to bootstrap the model
-    before real user data is available.
-
-    Features (X):
-        avg_cycle_length, std_cycle_length, avg_period_length,
-        avg_pain, avg_stress, avg_sleep
-
-    Target (y):
-        next_cycle_length  (what we're predicting)
+    Wraps a sklearn Ridge Regression pipeline (Scaler + Ridge).
+    Target = next cycle length in days.
     """
-    np.random.seed(42)
 
-    avg_cycle   = np.random.normal(28, 3, n_samples).clip(21, 45)
-    std_cycle   = np.random.uniform(0, 7, n_samples)
-    avg_period  = np.random.normal(5, 1, n_samples).clip(2, 9)
-    avg_pain    = np.random.uniform(1, 8, n_samples)
-    avg_stress  = np.random.uniform(1, 9, n_samples)
-    avg_sleep   = np.random.uniform(4, 9, n_samples)
+    def __init__(self):
+        self.pipeline: Optional[Pipeline] = None
+        self.is_trained: bool = False
+        self._load()
 
-    # Target: next cycle length is mostly driven by avg_cycle_length
-    # with small influence from stress and sleep
-    noise = np.random.normal(0, 1.5, n_samples)
-    next_cycle_length = (
-        avg_cycle
-        + (avg_stress - 5) * 0.4     # high stress → slightly longer cycle
-        - (avg_sleep - 7) * 0.3      # poor sleep → slightly longer cycle
-        + noise
-    ).clip(21, 45)
+    # ─── Persistence ──────────────────────────────────────────────────────────
 
-    X = np.column_stack([
-        avg_cycle, std_cycle, avg_period,
-        avg_pain, avg_stress, avg_sleep
-    ])
-    y = next_cycle_length
+    def _load(self):
+        path = Path(REGRESSION_MODEL_PATH)
+        if path.exists():
+            try:
+                with open(path, "rb") as f:
+                    self.pipeline = pickle.load(f)
+                self.is_trained = True
+                logger.info("Regression model loaded from %s", path)
+            except Exception as exc:
+                logger.warning("Failed to load regression model: %s", exc)
+                self.pipeline = None
+                self.is_trained = False
 
-    return X, y
+    def save(self):
+        path = Path(REGRESSION_MODEL_PATH)
+        path.parent.mkdir(exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(self.pipeline, f)
+        logger.info("Regression model saved to %s", path)
 
+    # ─── Training ─────────────────────────────────────────────────────────────
 
-def train_and_save():
-    """Train regression model and save to disk."""
-    from sklearn.linear_model import Ridge
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import mean_absolute_error
+    def train(self, X: np.ndarray, y: np.ndarray) -> dict:
+        """
+        Parameters
+        ----------
+        X : (n_samples, n_features) feature matrix
+        y : (n_samples,) target = next cycle length in days
 
-    print(" Training regression model...")
+        Returns
+        -------
+        dict with mae, rmse, cv_mae
+        """
+        if len(X) < REGRESSION_MIN_CYCLES:
+            raise ValueError(
+                f"Need at least {REGRESSION_MIN_CYCLES} samples to train regression model. "
+                f"Got {len(X)}."
+            )
 
-    X, y = _generate_synthetic_training_data(300)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+        self.pipeline = Pipeline([
+            ("scaler", StandardScaler()),
+            ("ridge",  Ridge(alpha=1.0)),
+        ])
+        self.pipeline.fit(X, y)
+        self.is_trained = True
 
-    model = Ridge(alpha=10.0)
-    model.fit(X_train, y_train)
+        y_pred = self.pipeline.predict(X)
+        mae  = float(np.mean(np.abs(y - y_pred)))
+        rmse = float(np.sqrt(np.mean((y - y_pred) ** 2)))
 
-    mae = mean_absolute_error(y_test, model.predict(X_test))
-    print(f"  ✅ Model trained — MAE: {mae:.2f} days")
+        # Cross-val only if enough samples
+        cv_mae = None
+        if len(X) >= 5:
+            cv_scores = cross_val_score(
+                self.pipeline, X, y,
+                cv=min(5, len(X)),
+                scoring="neg_mean_absolute_error",
+            )
+            cv_mae = float(-cv_scores.mean())
 
-    # Save model
-    os.makedirs("ml_service/saved_models", exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
-    print(f"  ✅ Model saved to {MODEL_PATH}")
+        self.save()
+        logger.info("Regression trained — MAE=%.2f RMSE=%.2f CV_MAE=%s", mae, rmse, cv_mae)
+        return {"mae": mae, "rmse": rmse, "cv_mae": cv_mae}
 
-    return model
+    # ─── Inference ────────────────────────────────────────────────────────────
 
+    def predict_cycle_length(self, feature_vector: np.ndarray) -> Optional[float]:
+        """
+        Returns predicted next cycle length (days) or None if model untrained.
+        feature_vector shape: (n_features,) or (1, n_features)
+        """
+        if not self.is_trained or self.pipeline is None:
+            logger.warning("Regression model not trained. Cannot predict.")
+            return None
 
-def load_model():
-    if not os.path.exists(MODEL_PATH):
-        print("  No saved model found - training fresh...")
-        return train_and_save()
-    model = joblib.load(MODEL_PATH)
-    print(f"  Model loaded from {MODEL_PATH}")
-    return model
- 
- 
-def predict_next_cycle_length(model, features: dict) -> float:
-    """
-    Features dict uses API contract names:
-    pain, sleep, stress (not pain_level, sleep_hours, stress_level)
-    """
-    X = np.array([[
-        features.get("avg_cycle_length")  or 28,
-        features.get("std_cycle_length")  or 2,
-        features.get("avg_period_length") or 5,
-        features.get("avg_pain")          or 3,   # sourced from contract: pain
-        features.get("avg_stress")        or 4,   # sourced from contract: stress
-        features.get("avg_sleep")         or 7,   # sourced from contract: sleep
-    ]])
-    return round(float(model.predict(X)[0]), 1)
+        x = feature_vector.reshape(1, -1) if feature_vector.ndim == 1 else feature_vector
+        pred = self.pipeline.predict(x)[0]
+        # Clamp to physiological range
+        return float(np.clip(pred, 21.0, 45.0))
+
+    def predict_confidence(self, feature_vector: np.ndarray) -> float:
+        """
+        Heuristic confidence score based on cycle variance feature.
+        Lower variance → higher confidence.
+        Returns value in [0.5, 0.95].
+        """
+        if not self.is_trained:
+            return 0.5
+        try:
+            var_idx = FEATURE_COLUMNS.index("cycle_variance")
+            variance = float(feature_vector.flatten()[var_idx])
+            # Confidence decays with variance; cap between 0.5 and 0.95
+            confidence = max(0.5, min(0.95, 1.0 - (variance / 100.0)))
+            return round(confidence, 2)
+        except (ValueError, IndexError):
+            return 0.6

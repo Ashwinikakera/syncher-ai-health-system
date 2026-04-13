@@ -1,114 +1,212 @@
-# ml_service/retrain.py
-# Day 7 Task 3 — UPDATED: now pulls real data from DB automatically
-# Dev1's Celery tasks.py calls: from ml_service.retrain import trigger_retrain
+"""
+ml_service/retrain.py
+Retraining pipeline. Called by Django Celery worker (Sprint 11)
+or via POST /ml/retrain from main.py.
+Rebuilds Regression and LSTM models from latest DB data.
+"""
+
+import logging
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(__file__))
 
 import numpy as np
-import joblib
-from pathlib import Path
-from datetime import datetime
-from sklearn.linear_model import Ridge
+from datetime import date
 
-from ml_service.data.db_fetcher import fetch_all_users_training_data
+from data.db_fetcher import (
+    _get_connection,
+    fetch_user_profile,
+    fetch_cycle_history,
+    fetch_recent_cycle_logs,
+    fetch_recent_daily_logs,
+    fetch_my_health_responses,
+)
+from prediction.feature_extraction import build_feature_vector, build_lstm_sequence
+from preprocessing.cleaning import clean_cycle_history, derive_cycle_lengths
+from models.regression import CycleRegressionModel
+from models.lstm import CycleLSTMModel
+from config import REGRESSION_MIN_CYCLES, LSTM_SEQUENCE_LEN
 
-SAVED_MODELS_DIR = Path(__file__).parent / "saved_models"
-RETRAIN_LOG      = Path(__file__).parent / "retrain_log.txt"
-
-MIN_NEW_CYCLES = 10   # raised from 3 — need more real data for meaningful retraining
+logger = logging.getLogger(__name__)
 
 
-def trigger_retrain() -> dict:
+def _fetch_all_user_ids() -> list[int]:
+    """Fetch all user IDs that have at least 2 completed cycles."""
+    sql = """
+        SELECT DISTINCT user_id
+        FROM   cycle_app_cycle
+        WHERE  end_date IS NOT NULL
+        GROUP  BY user_id
+        HAVING COUNT(*) >= %s
     """
-    Called by Dev1's Celery scheduler (e.g. every week).
-    Automatically fetches latest real data from DB and retrains.
+    try:
+        with _get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (REGRESSION_MIN_CYCLES,))
+                return [row["user_id"] for row in cur.fetchall()]
+    except Exception as exc:
+        logger.error("Could not fetch user IDs for retrain: %s", exc)
+        return []
 
-    No arguments needed — pulls data itself via db_fetcher.
 
-    Returns:
-        {
-            "status":       "retrained" | "skipped",
-            "reason":       str,
-            "samples_used": int,
-            "old_mae":      float | None,
-            "new_mae":      float | None,
-            "improved":     bool | None,
-            "timestamp":    str,
-        }
+def _build_regression_dataset(user_ids: list[int]) -> tuple[np.ndarray, np.ndarray]:
     """
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    For each user, build (feature_vector, next_cycle_length) pairs.
+    Each user can contribute multiple samples (one per completed cycle gap).
+    """
+    X_list, y_list = [], []
 
-    print("  Fetching training data from DB...")
-    real_data = fetch_all_users_training_data()
-    valid     = [r for r in real_data if r.get("actual_next_length")]
-
-    if len(valid) < MIN_NEW_CYCLES:
-        msg = f"Only {len(valid)} real records - need {MIN_NEW_CYCLES} to retrain"
-        _log(timestamp, "SKIPPED", msg)
-        return {
-            "status":       "skipped",
-            "reason":       msg,
-            "samples_used": len(valid),
-            "old_mae":      None,
-            "new_mae":      None,
-            "improved":     None,
-            "timestamp":    timestamp,
-        }
-
-    # Build feature matrix - 6 cols matching regression.py
-    X = np.array([
-        [
-            r.get("avg_cycle_length")  or 28,
-            r.get("std_cycle_length")  or 2,
-            r.get("avg_period_length") or 5,
-            r.get("avg_pain")          or 3,
-            r.get("avg_stress")        or 4,
-            r.get("avg_sleep")         or 7,
-        ]
-        for r in valid
-    ])
-    y = np.array([r["actual_next_length"] for r in valid])
-
-    # Evaluate old model before overwriting
-    model_path = SAVED_MODELS_DIR / "regression.pkl"
-    old_mae = None
-    if model_path.exists():
+    for uid in user_ids:
         try:
-            old_model = joblib.load(model_path)
-            old_preds = old_model.predict(X)
-            old_mae   = round(float(np.mean(np.abs(old_preds - y))), 3)
-        except Exception:
-            old_mae = None  # feature mismatch - old model incompatible
+            profile     = fetch_user_profile(uid)     or {}
+            cycles      = fetch_cycle_history(uid, limit=10)
+            cycle_logs  = fetch_recent_cycle_logs(uid)
+            daily_logs  = fetch_recent_daily_logs(uid)
+            mh_resp     = fetch_my_health_responses(uid)
 
-    # Train new model
-    new_model = Ridge(alpha=10.0)
-    new_model.fit(X, y)
-    new_preds = new_model.predict(X)
-    new_mae   = round(float(np.mean(np.abs(new_preds - y))), 3)
+            cleaned   = clean_cycle_history(cycles)
+            cl_values = derive_cycle_lengths(cleaned)  # n-1 values
 
-    # Only save if new model is actually better
-    improved = (old_mae is None) or (new_mae < old_mae)
+            # Each pair: use cycles[0..i] as input → predict cl_values[i]
+            for i, target_length in enumerate(cl_values):
+                subset_cycles = cleaned[: i + 1]
+                fv = build_feature_vector(
+                    profile,
+                    [{"start_date": c["start_date"], "end_date": c["end_date"]}
+                     for c in subset_cycles],
+                    cycle_logs,
+                    daily_logs,
+                    mh_resp,
+                )
+                X_list.append(fv)
+                y_list.append(float(target_length))
 
-    if improved:
-        SAVED_MODELS_DIR.mkdir(exist_ok=True)
-        joblib.dump(new_model, model_path)
-        msg = f"Retrained on {len(valid)} real samples | old_mae={old_mae} -> new_mae={new_mae} days"
-        _log(timestamp, "RETRAINED", msg)
+        except Exception as exc:
+            logger.warning("Skipping user %d in regression dataset: %s", uid, exc)
+            continue
+
+    if not X_list:
+        return np.array([]), np.array([])
+
+    return np.stack(X_list), np.array(y_list)
+
+
+def _build_lstm_dataset(user_ids: list[int]) -> tuple[np.ndarray, np.ndarray]:
+    """
+    For each user, build LSTM (sequence, next_cycle_length) pairs.
+    Requires at least LSTM_SEQUENCE_LEN + 1 cycles per user.
+    """
+    X_list, y_list = [], []
+
+    for uid in user_ids:
+        try:
+            profile     = fetch_user_profile(uid)     or {}
+            cycles      = fetch_cycle_history(uid, limit=10)
+            cycle_logs  = fetch_recent_cycle_logs(uid)
+            daily_logs  = fetch_recent_daily_logs(uid)
+            mh_resp     = fetch_my_health_responses(uid)
+
+            cleaned   = clean_cycle_history(cycles)
+            cl_values = derive_cycle_lengths(cleaned)
+
+            if len(cleaned) < LSTM_SEQUENCE_LEN + 1:
+                continue
+
+            for i in range(LSTM_SEQUENCE_LEN, len(cl_values) + 1):
+                subset_cycles = cleaned[:i]
+                seq = build_lstm_sequence(
+                    profile,
+                    [{"start_date": c["start_date"], "end_date": c["end_date"]}
+                     for c in subset_cycles],
+                    cycle_logs,
+                    daily_logs,
+                    mh_resp,
+                )
+                target = float(cl_values[i - 1])
+                X_list.append(seq[0])   # remove batch dim
+                y_list.append(target)
+
+        except Exception as exc:
+            logger.warning("Skipping user %d in LSTM dataset: %s", uid, exc)
+            continue
+
+    if not X_list:
+        return np.array([]), np.array([])
+
+    return np.stack(X_list), np.array(y_list)
+
+
+def run_retrain() -> dict:
+    """
+    Full retraining run.
+    Returns summary dict with training metrics.
+    """
+    logger.info("=== Starting SYNCHER ML Retrain ===")
+    user_ids = _fetch_all_user_ids()
+
+    if not user_ids:
+        logger.warning("No eligible users found for retraining.")
+        return {"status": "skipped", "reason": "no eligible users"}
+
+    logger.info("Found %d eligible users.", len(user_ids))
+    results = {}
+
+    # ── Regression ────────────────────────────────────────────────────────────
+    X_reg, y_reg = _build_regression_dataset(user_ids)
+    if len(X_reg) >= REGRESSION_MIN_CYCLES:
+        try:
+            reg_model = CycleRegressionModel()
+            metrics   = reg_model.train(X_reg, y_reg)
+            results["regression"] = metrics
+            logger.info("Regression retrained. MAE=%.2f", metrics.get("mae", -1))
+        except Exception as exc:
+            logger.error("Regression retrain failed: %s", exc)
+            results["regression"] = {"error": str(exc)}
     else:
-        msg = f"New model not better - skipping save | old_mae={old_mae}, new_mae={new_mae}"
-        _log(timestamp, "SKIPPED", msg)
+        logger.warning("Not enough regression samples (%d). Skipping.", len(X_reg))
+        results["regression"] = {"skipped": True, "samples": len(X_reg)}
 
-    return {
-        "status":       "retrained" if improved else "skipped",
-        "reason":       msg,
-        "samples_used": len(valid),
-        "old_mae":      old_mae,
-        "new_mae":      new_mae,
-        "improved":     improved,
-        "timestamp":    timestamp,
-    }
+    # ── LSTM ──────────────────────────────────────────────────────────────────
+    X_lstm, y_lstm = _build_lstm_dataset(user_ids)
+    if len(X_lstm) >= 5:
+        try:
+            lstm_model = CycleLSTMModel()
+            metrics    = lstm_model.train(X_lstm, y_lstm)
+            results["lstm"] = metrics
+            logger.info("LSTM retrained. MAE=%.2f", metrics.get("mae", -1))
+        except Exception as exc:
+            logger.error("LSTM retrain failed: %s", exc)
+            results["lstm"] = {"error": str(exc)}
+    else:
+        logger.warning("Not enough LSTM samples (%d). Skipping.", len(X_lstm))
+        results["lstm"] = {"skipped": True, "samples": len(X_lstm)}
+
+    logger.info("=== Retrain complete: %s ===", results)
+
+    # Log to retrain_log.txt
+    _write_retrain_log(results, len(user_ids))
+
+    return results
 
 
-def _log(timestamp: str, status: str, message: str):
-    line = f"[{timestamp}] {status}: {message}\n"
-    with open(RETRAIN_LOG, "a", encoding="utf-8") as f:
-        f.write(line)
-    print(f"  Retrain log: [{timestamp}] {status}: {message}")
+def _write_retrain_log(results: dict, user_count: int):
+    """Append a retrain summary line to retrain_log.txt."""
+    log_path = os.path.join(os.path.dirname(__file__), "retrain_log.txt")
+    try:
+        from datetime import datetime
+        timestamp = datetime.utcnow().isoformat()
+        line = (
+            f"{timestamp} | users={user_count} | "
+            f"reg_mae={results.get('regression', {}).get('mae', 'N/A')} | "
+            f"lstm_mae={results.get('lstm', {}).get('mae', 'N/A')}\n"
+        )
+        with open(log_path, "a") as f:
+            f.write(line)
+    except Exception as exc:
+        logger.warning("Could not write retrain log: %s", exc)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    run_retrain()

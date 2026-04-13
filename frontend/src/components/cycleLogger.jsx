@@ -1,24 +1,61 @@
-import React, { useState } from "react";
-import { addCycle } from "../services/cycleService";
+import React, { useState, useEffect } from "react";
+import { addCycle, endCycle } from "../services/cycleService";
 
 export default function CycleLogger() {
   const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [isActive, setIsActive] = useState(false);
 
-  const handleSubmit = async () => {
-    try {
-      await addCycle({
-        start_date: startDate,
-        end_date: endDate
-      });
-      alert("Cycle saved");
-    } catch (err) {
-      console.log(err);
-      alert("Demo cycle saved");
+  useEffect(() => {
+    const cycle = JSON.parse(localStorage.getItem("cycle"));
+    if (cycle?.isActive) {
+      setIsActive(true);
+      setStartDate(cycle.startDate);
     }
+  }, []);
+
+  // 🟢 START CYCLE
+  const handleStart = async () => {
+    if (!startDate) {
+      alert("Select start date");
+      return;
+    }
+
+    try {
+      await addCycle({ start_date: startDate });
+    } catch (err) {
+      console.log("Demo mode");
+    }
+
+    localStorage.setItem(
+      "cycle",
+      JSON.stringify({
+        startDate,
+        isActive: true
+      })
+    );
+
+    alert("Cycle started ✅");
+
+    window.location.href = "/daily-logs";
   };
 
-  // 🔥 SAME CARD STYLE
+  // 🔴 END CYCLE
+  const handleEnd = async () => {
+    const today = new Date().toISOString().split("T")[0];
+
+    try {
+      await endCycle({ end_date: today });
+    } catch (err) {
+      console.log("Demo end");
+    }
+
+    localStorage.removeItem("cycle");
+
+    alert("Cycle ended ✅");
+
+    window.location.reload();
+  };
+
   const card = {
     background: "#fff",
     padding: "25px",
@@ -29,17 +66,13 @@ export default function CycleLogger() {
     textAlign: "center"
   };
 
-  // 🔥 SAME INPUT STYLE
   const inputStyle = {
     width: "100%",
     padding: "10px",
     borderRadius: "6px",
-    border: "1px solid #ccc",
-    fontSize: "14px",
-    boxSizing: "border-box"
+    border: "1px solid #ccc"
   };
 
-  // 🔥 SAME BUTTON STYLE
   const buttonStyle = {
     width: "100%",
     padding: "12px",
@@ -51,36 +84,43 @@ export default function CycleLogger() {
     fontWeight: "bold"
   };
 
+  // ✅ NEW: spacing container
+  const formGroup = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "15px", // 🔥 THIS FIXES YOUR ISSUE
+    marginTop: "20px"
+  };
+
   return (
     <div style={card}>
-      <h3>Cycle Logger</h3>
+      <h3>Cycle Tracker</h3>
 
-      {/* 🔥 ONLY CHANGE: added labels + left align */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px", textAlign: "left" }}>
+      {!isActive ? (
+        <div style={formGroup}>
+          <input
+            style={inputStyle}
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
 
-        {/* Start Date */}
-        <label style={{ fontWeight: "bold" }}>Start Date</label>
-        <input
-          style={inputStyle}
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
+          <button style={buttonStyle} onClick={handleStart}>
+            Start Cycle
+          </button>
+        </div>
+      ) : (
+        <div style={formGroup}>
+          <p><strong>Cycle Active from:</strong> {startDate}</p>
 
-        {/* End Date */}
-        <label style={{ fontWeight: "bold" }}>End Date</label>
-        <input
-          style={inputStyle}
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
-
-        <button style={buttonStyle} onClick={handleSubmit}>
-          Save Cycle
-        </button>
-
-      </div>
+          <button
+            style={{ ...buttonStyle, background: "black" }}
+            onClick={handleEnd}
+          >
+            End Cycle
+          </button>
+        </div>
+      )}
     </div>
   );
 }
