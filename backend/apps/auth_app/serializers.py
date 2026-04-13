@@ -73,25 +73,10 @@ class LoginSerializer(serializers.Serializer):
 class OnboardingSerializer(serializers.ModelSerializer):
     """
     Validates POST /api/onboarding
-    Contract expects:
-    {
-        "age": 22,
-        "weight": 55,
-        "cycle_history": [
-            {"start_date": "2024-01-01", "end_date": "2024-01-05"},
-            {"start_date": "2024-01-28", "end_date": "2024-02-01"}
-        ],
-        "avg_cycle_length": 28,
-        "pain": 3,
-        "mood": "low",
-        "flow": "medium",
-        "medical_condition": "PCOS",
-        "medical_notes": "missed periods in last 6 months"
-    }
     """
 
     cycle_history = serializers.ListField(
-        child     = serializers.DictField(child=serializers.CharField()),
+        child      = serializers.DictField(child=serializers.CharField()),
         min_length = 1
     )
 
@@ -114,8 +99,10 @@ class OnboardingSerializer(serializers.ModelSerializer):
         return value
 
     def validate_avg_cycle_length(self, value):
-        if value < 15 or value > 45:
-            raise serializers.ValidationError("Cycle length must be between 15 and 45 days")
+        # Relaxed validation — PCOS/irregular users can have longer cycles
+        value = abs(value)
+        if value < 10 or value > 180:
+            raise serializers.ValidationError("Please enter a valid cycle length")
         return value
 
     def validate_pain(self, value):
