@@ -41,7 +41,7 @@ export default function Register() {
       });
 
       alert("Registered successfully");
-      navigate("/onboarding");
+      navigate("/login");
 
     } catch (err) {
       console.log(err);

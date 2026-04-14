@@ -235,7 +235,6 @@ export default function Logger() {
               {/*  routine_change */}
               <select style={inputStyle} value={routineChange} onChange={(e) => setRoutineChange(e.target.value)}>
                 <option value="">Routine Change</option>
-
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </select>
