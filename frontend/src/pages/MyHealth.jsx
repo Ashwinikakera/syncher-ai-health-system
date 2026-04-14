@@ -76,7 +76,7 @@ export default function MyHealth() {
       // POST to save
       await API.post("/my-health/", form);
 
-      // GET to fetch score + insights
+      // GET to fetch score + AI analysis
       const getRes = await API.get("/my-health/");
       setResult(getRes.data);
 
@@ -315,7 +315,7 @@ export default function MyHealth() {
             <h3>🧾 Health Analysis Result</h3>
 
             <div style={{ marginTop: "15px" }}>
-              <strong>Health Score:</strong>
+              <strong>Health Risk Score:</strong>
               <div style={{ marginTop: "8px", height: "12px", width: "100%", background: "#eee", borderRadius: "10px", overflow: "hidden" }}>
                 <div style={{
                   height: "100%", width: `${result.score}%`,
@@ -336,14 +336,14 @@ export default function MyHealth() {
               </span>
             </p>
 
-            <div style={{ marginTop: "10px" }}>
-              <strong>Insights:</strong>
-              <ul style={{ marginTop: "8px", paddingLeft: "18px" }}>
-                {result.insights?.map((item, index) => (
-                  <li key={index} style={{ marginBottom: "6px" }}>{item}</li>
-                ))}
-              </ul>
-            </div>
+            {result.ai_analysis && (
+              <div style={{ marginTop: "15px", padding: "12px", background: "#f9f9f9", borderRadius: "8px", lineHeight: "1.6" }}>
+                <strong>AI Analysis:</strong>
+                <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", textAlign: "justify" }}>
+                  {result.ai_analysis}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -112,19 +112,19 @@ function Layout({ children }) {
 }
 
 function App() {
-  const getValidToken = () => {
-    const savedToken = localStorage.getItem("token");
-    if (!savedToken || savedToken === "undefined" || savedToken === "null") {
-      return null;
-    }
-    return savedToken;
-  };
+  //const getValidToken = () => {
+   //const savedToken = localStorage.getItem("token");
+    //if (!savedToken || savedToken === "undefined" || savedToken === "null") {
+    //return null;
+    //}
+    //return savedToken;
+ // };
 
-  const [token, setToken] = useState(getValidToken());
+  const [token, setToken] = useState(localStorage.getItem("token"));
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const newToken = getValidToken();
+      const newToken = localStorage.getItem("token");
       if (newToken !== token) {
         setToken(newToken);
       }

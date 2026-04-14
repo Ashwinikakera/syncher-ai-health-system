@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 import React, { useState } from "react";
 import { loginUser } from "../services/authService";
 import { useNavigate } from "react-router-dom";
@@ -172,4 +170,3 @@ export default function Login() {
 // ✅ Fixes 401 Unauthorized issue
 // ✅ Fixes navigation — new users go to onboarding, existing to dashboard
 // ✅ Keeps UI and flow unchanged
->>>>>>> 0b61d3502123e67d9b4d3a9c911c1f3faf0ff4ee

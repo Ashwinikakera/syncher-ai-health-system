@@ -22,9 +22,8 @@ export default function Dashboard() {
 
       console.log("FULL RESPONSE:", backendData);
 
-      setRisk(backendData.health_risk || "Low");
+      setRisk(backendData.risk_level || "Low");
 
-      // Check if feedback already submitted for this cycle
       setFeedbackSubmitted(backendData.feedback_submitted || false);
 
       const today = new Date();
@@ -40,29 +39,12 @@ export default function Dashboard() {
       ovulationEnd.setDate(today.getDate() + 18);
 
       const safeData = {
-        next_period_date:
-          backendData.next_period_date || formatDate(nextPeriod),
-
-        ovulation_window:
-          backendData.ovulation_window || [
-            formatDate(ovulationStart),
-            formatDate(ovulationEnd)
-          ],
-
-        cycle_regularity_score:
-          backendData.cycle_regularity_score || 0.75,
-
-        predicted_length:
-          backendData.predicted_length || 28,
-
-        confidence:
-          backendData.confidence || 0.75,
-
-        insights:
-          backendData.health_insights?.length > 0
-            ? backendData.health_insights
-            : ["Keep logging daily for better insights"],
-
+        next_period_date: backendData.next_period || formatDate(nextPeriod),
+        ovulation_window: backendData.ovulation_window || [formatDate(ovulationStart), formatDate(ovulationEnd)],
+        regularity_score: backendData.regularty_score || 0.75,
+        predicted_length: backendData.predicted_length || 28,
+        confidence: backendData.confidence || 0.75,
+        ai_insights: backendData.ai_insights || "Keep logging daily for better insights",
         recent_symptoms: backendData.recent_symptoms || {},
         medical_history: backendData.medical_history || {}
       };
@@ -74,10 +56,10 @@ export default function Dashboard() {
       setData({
         next_period_date: "N/A",
         ovulation_window: ["N/A", "N/A"],
-        cycle_regularity_score: 0,
+        regularity_score: 0,
         predicted_length: 28,
         confidence: 0,
-        insights: ["Backend not connected"],
+        ai_insights: "Backend not connected",
         recent_symptoms: {},
         medical_history: {}
       });
@@ -119,7 +101,6 @@ export default function Dashboard() {
       await API.post("/prediction-feedback/", payload);
       alert("Feedback submitted ✅");
 
-      // Refresh dashboard with updated predictions
       await fetchDashboard();
 
       setIsCorrect("");
@@ -170,9 +151,8 @@ export default function Dashboard() {
               <p><strong>Predicted Length:</strong> {data.predicted_length} days</p>
               <p><strong>Confidence:</strong> {Math.round(data.confidence * 100)}%</p>
               <p><strong>High Fertility Range:</strong> {data.ovulation_window.join(" to ")}</p>
-              <p><strong>Regularity Score:</strong> {data.cycle_regularity_score}</p>
+              <p><strong>Regularity Score:</strong> {data.regularity_score}</p>
 
-              {/* FEEDBACK SECTION — only show if not yet submitted for this cycle */}
               {!feedbackSubmitted ? (
                 <div style={{ marginTop: "15px", padding: "12px", background: "#fff5f5", borderRadius: "8px", border: "1px solid #ffcccc" }}>
                   <p><strong>Was this prediction correct?</strong></p>
@@ -222,30 +202,27 @@ export default function Dashboard() {
                   )}
                 </div>
               ) : (
-                // Show confirmation that feedback was submitted
                 <div style={{ marginTop: "15px", padding: "12px", background: "#f0fff0", borderRadius: "8px", border: "1px solid #90ee90" }}>
                   <p style={{ color: "green" }}>✅ Prediction feedback submitted. Dashboard will update after your next cycle.</p>
                 </div>
               )}
 
-              <h3 style={{ marginTop: "15px" }}>Insights:</h3>
-              <ul>
-                {data.insights.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
+              <h3 style={{ marginTop: "15px" }}>AI Insights:</h3>
+              <div style={{ padding: "12px", background: "#f9f9f9", borderRadius: "8px", lineHeight: "1.6", whiteSpace: "pre-wrap", textAlign: "justify" }}>
+                {data.ai_insights}
+              </div>
 
-              {/* Recent Symptoms */}
               {data.recent_symptoms && Object.keys(data.recent_symptoms).length > 0 && (
                 <>
                   <h3>Recent Symptoms:</h3>
-                  <p>Pain: {data.recent_symptoms.pain}</p>
-                  <p>Mood: {data.recent_symptoms.mood}</p>
-                  <p>Flow: {data.recent_symptoms.flow}</p>
+                  <p>Pain: {data.recent_symptoms.pain || "N/A"}</p>
+                  <p>Mood: {data.recent_symptoms.mood || "N/A"}</p>
+                  <p>Flow: {data.recent_symptoms.flow || "N/A"}</p>
+                  <p>Stress: {data.recent_symptoms.stress || "N/A"}</p>
+                  <p>Sleep: {data.recent_symptoms.sleep || "N/A"} hours</p>
                 </>
               )}
 
-              {/* Medical History */}
               {data.medical_history?.condition && data.medical_history.condition !== "None" && (
                 <>
                   <h3>Medical History:</h3>
