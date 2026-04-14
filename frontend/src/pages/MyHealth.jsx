@@ -129,10 +129,31 @@ export default function MyHealth() {
   };
 
   const input = (q) => ({
-    width: "100%", padding: "18px", marginTop: "12px", borderRadius: "10px",
-    fontSize: "18px", fontWeight: "500", background: "#fafafa",
-    border: errors[q] ? "2px solid red" : "1px solid #ccc", outline: "none"
+    width: "100%",
+    padding: "18px",
+    marginTop: "12px",
+    borderRadius: "10px",
+    fontSize: "18px",
+    fontWeight: "500",
+
+    // 🎯 NEW LOGIC
+    background: errors[q]
+      ? "#ffe6e6"                     // error (light red)
+      : form[q]
+      ? "#e6fff2"                     // answered (light green)
+      : "#fafafa",                    // default
+
+    border: errors[q]
+      ? "2px solid red"
+      : form[q]
+      ? "2px solid #28a745"           // green border when answered
+      : "1px solid #ccc",
+
+    outline: "none",
+    transition: "all 0.3s ease"
   });
+  
+
 
   const fadeStyle = `
     @keyframes fadeIn {
@@ -163,9 +184,9 @@ export default function MyHealth() {
                 onChange={(e) => { handleChange("q1", e.target.value); setErrors(p => ({ ...p, q1: "" })); }}>
                 <option value="">Acne severity (especially jawline/chin)?</option>
                 <option>None</option>
-                <option>Mild/occasional</option>
-                <option>Persistent/recurrent</option>
-                <option>Severe/cystic</option>
+                <option>Mild/Occasional</option>
+                <option>Persistent/Recurrent</option>
+                <option>Severe/Cystic</option>
               </select>
               {errors.q1 && <p style={{ color: "red" }}>{errors.q1}</p>}
 
