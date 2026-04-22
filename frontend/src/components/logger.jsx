@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { addLog } from "../services/logService";
+import { endCycle } from "../services/cycleService";
+import API from "../api/axios";
 
 export default function Logger() {
   const [date, setDate] = useState("");
@@ -9,188 +11,295 @@ export default function Logger() {
   const [sleep, setSleep] = useState("");
   const [stress, setStress] = useState("");
   const [exercise, setExercise] = useState("");
+  const [whiteDischarge, setWhiteDischarge] = useState("");
+  const [medication, setMedication] = useState("");
+  const [medicationDetails, setMedicationDetails] = useState("");
+  const [food, setFood] = useState("");
+  const [routineChange, setRoutineChange] = useState("");
+  const [routineDetails, setRoutineDetails] = useState("");
+  const [hydration, setHydration] = useState("");
+  const [symptoms, setSymptoms] = useState([]);
+  const [otherSymptom, setOtherSymptom] = useState("");
+  const [cycle, setCycle] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const storedCycle = JSON.parse(localStorage.getItem("cycle"));
+    if (storedCycle?.isActive) {
+      setCycle({ start_date: storedCycle.startDate });
+    } else {
+      setCycle(null);
+    }
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return <p style={{ textAlign: "center" }}>Checking cycle...</p>;
+  }
+
+  const handleSymptomChange = (item) => {
+    setSymptoms(prev =>
+      prev.includes(item) ? prev.filter(s => s !== item) : [...prev, item]
+    );
+  };
+
+  const handleClear = () => {
+    setDate(""); setPain(""); setMood(""); setFlow("");
+    setSleep(""); setStress(""); setExercise("");
+    setMedication(""); setMedicationDetails(""); setFood("");
+    setRoutineChange(""); setRoutineDetails(""); setHydration("");
+    setSymptoms([]); setOtherSymptom(""); setWhiteDischarge("");
+  };
 
   const handleSubmit = async () => {
-    // ✅ VALIDATION (SAFE + SIMPLE)
 
-    if (!date) {
-      alert("Please select date");
-      return;
-    }
+    if (!date) { alert("Please select date"); return; }
 
-    if (pain === "" || pain < 0 || pain > 5) {
-      alert("Pain must be between 0–5");
-      return;
-    }
-
-    if (!mood || !flow) {
-      alert("Please select mood and flow");
-      return;
-    }
-
-    if (sleep === "" || sleep < 0 || sleep > 24) {
-      alert("Sleep must be between 0–24 hours");
-      return;
-    }
-
-    if (!stress || !exercise) {
-      alert("Please select stress and exercise");
-      return;
-    }
 
     try {
-      await addLog({
-        date,
-        pain: Number(pain),
-        mood,
-        flow,
-        sleep: Number(sleep),
-        stress,
-        exercise
-      });
+      if (cycle) {
+        // FIX: period days → POST /api/cycle-log/
+        if (!pain || pain < 1 || pain > 10) {
+          alert("Pain must be between 1 and 10"); return;
+        }
+
+        const cycleLogPayload = {
+          date,
+          pain:               Number(pain),
+          mood,
+          flow,
+          sleep:              Number(sleep),
+          stress,
+          exercise,
+          medication,
+          medication_details: medicationDetails,
+          hydration
+        };
+
+        await API.post("/cycle-log/", cycleLogPayload);
+
+      } else {
+        // FIX: non-period days → POST /api/daily-log/
+        const allSymptoms = otherSymptom
+          ? [...symptoms, otherSymptom]
+          : symptoms;
+
+        const dailyLogPayload = {
+          date,
+          sleep:              Number(sleep),
+          stress,
+          exercise,
+          medication,
+          medication_details: medicationDetails,
+          food,                           // FIX: string not array
+          routine_change:     routineChange, // FIX: correct field name
+          routine_details:    routineDetails,
+          white_discharge:    whiteDischarge,
+          hydration,
+          symptoms:           allSymptoms
+        };
+
+        await addLog(dailyLogPayload);
+      }
 
       alert("Log saved ✅");
-
-      // 🔥 OPTIONAL: reset form (safe UX improvement)
-      setDate("");
-      setPain("");
-      setMood("");
-      setFlow("");
-      setSleep("");
-      setStress("");
-      setExercise("");
+      handleClear();
 
     } catch (err) {
-      console.log(err);
-      alert("Demo log saved ✅");
+      const errorMsg = err.response?.data?.error;
+      if (errorMsg === "Log already exists for this date") {
+        alert("⚠️ You already added log for this date");
+      } else {
+        alert(errorMsg || "Error saving log ❌");
+      }
     }
   };
 
-  // 🔥 SAME CARD STYLE (UNCHANGED)
+  const handleEndCycle = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      await endCycle({ end_date: today });
+      localStorage.removeItem("cycle");
+      alert("Cycle ended ✅");
+      setCycle(null);
+    } catch (err) {
+      alert(err?.response?.data?.error || "Failed to end cycle");
+    }
+  };
+
+  const pageWrapper = {
+    minHeight: "100vh", width: "100%", background: "#ffe5e5",
+    display: "flex", justifyContent: "center", alignItems: "center", padding: "20px"
+  };
+
   const card = {
-    background: "#fff",
-    padding: "25px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    maxWidth: "400px",
-    margin: "40px auto",
-    textAlign: "center"
+    background: "#fff", padding: "25px", borderRadius: "12px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)", width: "100%",
+    maxWidth: "450px", margin: "0", textAlign: "center"
   };
 
   const inputStyle = {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "6px",
-    border: "1px solid #ccc",
-    fontSize: "14px",
-    boxSizing: "border-box"
+    width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc"
   };
 
   const buttonStyle = {
-    width: "100%",
-    padding: "12px",
-    background: "#e60023",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold"
+    width: "100%", padding: "12px", background: "#e60023", color: "#fff",
+    border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer"
   };
 
   return (
-    <div style={card}>
-      <h3>Daily Logger</h3>
+    <div style={pageWrapper}>
+      <div style={card}>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <h3 style={{ marginBottom: "10px" }}>
+          {cycle ? "Cycle Logger (Period Day)" : "Daily Logger"}
+        </h3>
 
-        {/* Date */}
-        <input
-          style={inputStyle}
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
 
-        {/* Pain */}
-        <input
-          style={inputStyle}
-          type="number"
-          placeholder="Pain (0-5)"
-          min="0"
-          max="5"
-          value={pain}
-          onChange={(e) => setPain(e.target.value)}
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
-        {/* Mood */}
-        <select
-          style={inputStyle}
-          value={mood}
-          onChange={(e) => setMood(e.target.value)}
-        >
-          <option value="">Mood</option>
-          <option value="happy">Happy</option>
-          <option value="low">Sad</option>
-          <option value="irritated">Irritated</option>
-          <option value="neutral">Neutral</option>
-        </select>
+          <input style={inputStyle} type="date" value={date}
+            onChange={(e) => setDate(e.target.value)} />
 
-        {/* Flow */}
-        <select
-          style={inputStyle}
-          value={flow}
-          onChange={(e) => setFlow(e.target.value)}
-        >
-          <option value="">Flow</option>
-          <option value="light">Light</option>
-          <option value="medium">Medium</option>
-          <option value="heavy">Heavy</option>
-        </select>
+          {/* PERIOD DAY FIELDS */}
+          {cycle && (
+            <>
+              <input style={inputStyle} type="number" placeholder="Pain (1-10)"
+                value={pain} min="1" max="10"
+                onChange={(e) => setPain(e.target.value)} />
 
-        {/* Sleep */}
-        <input
-          style={inputStyle}
-          type="number"
-          placeholder="Sleep hours (0-24)"
-          min="0"
-          max="24"
-          value={sleep}
-          onChange={(e) => setSleep(e.target.value)}
-        />
+              <select style={inputStyle} value={mood} onChange={(e) => setMood(e.target.value)}>
+                <option value="">Mood</option>
+                <option value="low">Happy</option>
+                <option value="medium">Low</option>
+                <option value="high">Irritated</option>
+              </select>
 
-        {/* Stress */}
-        <select
-          style={inputStyle}
-          value={stress}
-          onChange={(e) => setStress(e.target.value)}
-        >
-          <option value="">Stress</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+              <select style={inputStyle} value={flow} onChange={(e) => setFlow(e.target.value)}>
+                <option value="">Flow</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="heavy">Heavy</option>
+              </select>
+            </>
+          )}
 
-        {/* Exercise */}
-        <select
-          style={inputStyle}
-          value={exercise}
-          onChange={(e) => setExercise(e.target.value)}
-        >
-          <option value="">Exercise</option>
-          <option value="none">None</option>
-          <option value="light">Light</option>
-          <option value="moderate">Moderate</option>
-          <option value="heavy">Heavy</option>
-        </select>
+          <input style={inputStyle} type="number" placeholder="Sleep hours"
+            value={sleep} onChange={(e) => setSleep(e.target.value)} />
 
-        {/* Submit */}
-        <button style={buttonStyle} onClick={handleSubmit}>
-          Submit Log
-        </button>
+          {/* stress option */}
+          <select style={inputStyle} value={stress} onChange={(e) => setStress(e.target.value)}>
+            <option value="">Stress</option>
+            <option value="none">None</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
 
+          <select style={inputStyle} value={exercise} onChange={(e) => setExercise(e.target.value)}>
+            <option value="">Exercise</option>
+            <option value="none">None</option>
+            <option value="light">Light</option>
+            <option value="moderate">Moderate</option>
+            <option value="intense">Intense</option>
+          </select>
+
+          <select style={inputStyle} value={medication} onChange={(e) => setMedication(e.target.value)}>
+            <option value="">Medication</option>
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </select>
+
+          {medication === "yes" && (
+            <input style={inputStyle} type="text" placeholder="Medication details"
+              value={medicationDetails} onChange={(e) => setMedicationDetails(e.target.value)} />
+          )}
+
+          <select style={inputStyle} value={hydration} onChange={(e) => setHydration(e.target.value)}>
+            <option value="">Hydration</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+
+          {/* NON-PERIOD DAY FIELDS */}
+          {!cycle && (
+            <>
+              {/*  food as single select string */}
+              <select style={inputStyle} value={food} onChange={(e) => setFood(e.target.value)}>
+                <option value="">Food</option>
+                <option value="healthy">Healthy</option>
+                <option value="junk">Junk</option>
+                <option value="mixed">Mixed</option>
+              </select>
+
+              {/*  routine_change */}
+              <select style={inputStyle} value={routineChange} onChange={(e) => setRoutineChange(e.target.value)}>
+                <option value="">Routine Change</option>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+
+              {routineChange === "yes" && (
+                <input style={inputStyle} type="text" placeholder="What changed?"
+                  value={routineDetails} onChange={(e) => setRoutineDetails(e.target.value)} />
+              )}
+
+              {/*  white_discharge valid options */}
+              <select style={inputStyle} value={whiteDischarge} onChange={(e) => setWhiteDischarge(e.target.value)}>
+                <option value="">White Discharge</option>
+                <option value="none">None</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="heavy">Heavy</option>
+              </select>
+
+              <div style={{ textAlign: "left" }}>
+                <strong>Premenstrual Symptoms</strong>
+                <div style={{ border: "1px solid #ccc", borderRadius: "6px", padding: "10px", marginTop: "6px" }}>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    {["Cramps", "Headache", "Fatigue"].map(item => (
+                      <label key={item}>
+                        <input type="checkbox" checked={symptoms.includes(item)}
+                          onChange={() => handleSymptomChange(item)} /> {item}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "6px" }}>
+                    {["Mood_swings", "Nausea"].map(item => (
+                      <label key={item}>
+                        <input type="checkbox" checked={symptoms.includes(item)}
+                          onChange={() => handleSymptomChange(item)} /> {item}
+                      </label>
+                    ))}
+                    <label>
+                      <input type="checkbox" checked={symptoms.includes("other")}
+                        onChange={() => handleSymptomChange("other")} /> Other
+                    </label>
+                  </div>
+                </div>
+                {symptoms.includes("other") && (
+                  <input style={{ ...inputStyle, marginTop: "8px" }} type="text"
+                    placeholder="Enter other symptoms" value={otherSymptom}
+                    onChange={(e) => setOtherSymptom(e.target.value)} />
+                )}
+              </div>
+            </>
+          )}
+
+          <button style={buttonStyle} onClick={handleSubmit}>Submit Log</button>
+
+          <button style={{ ...buttonStyle, background: "#555" }} onClick={handleClear}>
+            Clear Form
+          </button>
+
+          {cycle && (
+            <button style={{ ...buttonStyle, background: "black" }} onClick={handleEndCycle}>
+              End Cycle
+            </button>
+          )}
+
+        </div>
       </div>
     </div>
   );
 }
-
-// This file validates user health input (pain range, required fields, lifestyle data), ensures only valid data is sent to backend, maintains UI consistency, and improves UX with safe form reset after submission

@@ -20,21 +20,28 @@ django-celery-results==2.5.1        # Store task results in DB
 # -----------------------------------------------------------------------------
 # DEV3 — ML / Data Science Layer (ml_service/)
 # -----------------------------------------------------------------------------
-numpy==1.26.4
-pandas==2.2.2
-scikit-learn==1.4.2
-tensorflow==2.15.1                  # LSTM model (Phase 3)
-keras==2.15.0                       # High-level API for LSTM
+# Web framework 
+flask>=3.0.0
+gunicorn>=21.2.0
 
+# ── Database 
+psycopg2-binary>=2.9.9
 
-# -----------------------------------------------------------------------------
-# DEV3 — RAG / Chatbot / Ollama client (ml_service/chatbot/)
-# -----------------------------------------------------------------------------
-requests==2.31.0                    # ollama_client.py calls Ollama REST API
-langchain==0.1.20                   # Optional: RAG chain utilities
-langchain-community==0.0.38         # Document loaders, vector store wrappers
-sentence-transformers==2.7.0        # Embeddings for RAG retrieval
-faiss-cpu==1.8.0                    # Local vector similarity search
+# ── ML core
+numpy>=1.26.0
+scikit-learn>=1.4.0
+pandas>=2.2.0
+
+# ── Deep learning 
+# TensorFlow: install CPU-only on dev machines to save RAM
+tensorflow-cpu>=2.16.0
+# On GPU server replace with: tensorflow>=2.16.0
+tensorflow==2.10.0
+# ── Groq SDK 
+groq>=0.9.0
+
+# ── Utilities 
+python-dotenv>=1.0.0
 
 
 # -----------------------------------------------------------------------------

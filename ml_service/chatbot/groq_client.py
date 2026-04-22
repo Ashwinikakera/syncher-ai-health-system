@@ -1,82 +1,154 @@
-# ml_service/chatbot/groq_client.py
-# Day 7 — Task 2: Optimized Groq client (replaces original)
+"""
+ml_service/chatbot/groq_client.py
+Groq API client for the RAG chatbot pipeline.
+Uses model: menstllama (custom fine-tuned model for menstrual health).
+This client is ONLY for the chatbot — health analysis uses health_engine.py.
+"""
+
+import logging
+import os
+from typing import Optional
 
 from groq import Groq
-from ml_service.config import GROQ_API_KEY, GROQ_MODEL
 
-client = Groq(api_key=GROQ_API_KEY)
+from config import GROQ_API_KEY, GROQ_CHATBOT_MODEL, GROQ_TEMPERATURE
+
+logger = logging.getLogger(__name__)
+
+_client: Optional[Groq] = None
 
 
-def check_groq_running() -> bool:
-    """Verify Groq API key is valid and reachable."""
-    try:
-        client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[{"role": "user", "content": "hi"}],
-            max_tokens=5,
+def _get_client() -> Groq:
+    global _client
+    if _client is None:
+        api_key = GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY not set. Chatbot cannot function.")
+        _client = Groq(api_key=api_key)
+    return _client
+
+
+def chat_completion(
+    system_prompt:   str,
+    user_message:    str,
+    context_chunks:  list[str],
+    max_tokens:      int = 512,
+) -> str:
+    """
+    Sends a RAG-augmented chat message to Groq menstllama.
+
+    Parameters
+    ----------
+    system_prompt   : base system instruction for the model
+    user_message    : the user's original question
+    context_chunks  : retrieved RAG context passages (injected into user prompt)
+    max_tokens      : max response tokens
+
+    Returns
+    -------
+    str : model response text
+    """
+    # Build augmented user message with RAG context
+    if context_chunks:
+        context_block = "\n\n".join(
+            f"[Context {i+1}]: {chunk}" for i, chunk in enumerate(context_chunks)
         )
+        augmented_message = (
+            f"Use the following context to answer the question.\n\n"
+            f"{context_block}\n\n"
+            f"Question: {user_message}"
+        )
+    else:
+        augmented_message = user_message
+
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=GROQ_CHATBOT_MODEL,
+            messages=[
+                {"role": "system",  "content": system_prompt},
+                {"role": "user",    "content": augmented_message},
+            ],
+            max_tokens=max_tokens,
+            temperature=GROQ_TEMPERATURE,
+        )
+        answer = response.choices[0].message.content.strip()
+        logger.info("Chatbot response (%d chars) for query: '%s...'",
+                    len(answer), user_message[:40])
+        return answer
+
+    except Exception as exc:
+        logger.error("Groq chatbot call failed: %s", exc)
+        return (
+            "I'm sorry, I couldn't process your question right now. "
+            "Please try again in a moment."
+        )
+
+
+def raw_completion(
+    messages:   list[dict],
+    tools:      "Optional[list[dict]]" = None,
+    max_tokens: int = 512,
+) -> dict:
+    """
+    Low-level completion call used by the LLM Agent loop in rag.py.
+    Returns the raw assistant message as a dict so the agent can
+    inspect tool_calls vs plain content.
+
+    Returns:
+        {
+          "content":    str,
+          "tool_calls": list | None,
+        }
+    """
+    try:
+        client = _get_client()
+        kwargs: dict = dict(
+            model       = GROQ_CHATBOT_MODEL,
+            messages    = messages,
+            max_tokens  = max_tokens,
+            temperature = GROQ_TEMPERATURE,
+        )
+        if tools:
+            kwargs["tools"]       = tools
+            kwargs["tool_choice"] = "auto"
+
+        response = client.chat.completions.create(**kwargs)
+        msg = response.choices[0].message
+
+        tool_calls = None
+        if msg.tool_calls:
+            tool_calls = [
+                {
+                    "id": tc.id,
+                    "function": {
+                        "name":      tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ]
+
+        return {
+            "content":    msg.content or "",
+            "tool_calls": tool_calls,
+        }
+
+    except Exception as exc:
+        logger.error("raw_completion failed: %s", exc)
+        return {
+            "content": (
+                "I'm sorry, I couldn't process your question right now. "
+                "Please try again in a moment."
+            ),
+            "tool_calls": None,
+        }
+
+
+def is_available() -> bool:
+    """Quick connectivity check. Returns True if Groq client initialises."""
+    try:
+        _get_client()
         return True
     except Exception:
         return False
-
-
-def list_available_models() -> list:
-    """Return current model in use."""
-    return [GROQ_MODEL]
-
-
-def generate_response(
-    prompt: str,
-    system_prompt: str = None,
-    mode: str = "chat",          # "chat" | "nlp"
-) -> str:
-    """
-    Optimized Groq call.
-
-    Changes from original:
-    - mode="chat"  → more tokens (250), lower temp (0.5) for consistent health answers
-    - mode="nlp"   → fewer tokens (120), temp=0.0 for strict JSON extraction
-    - Added stop sequences to prevent Groq from rambling past the answer
-    - Added basic response quality check — retries once if response is too short
-    """
-    messages = []
-
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-
-    messages.append({"role": "user", "content": prompt})
-
-    # Per-mode settings
-    if mode == "nlp":
-        max_tokens  = 120
-        temperature = 0.0       # deterministic for JSON extraction
-        top_p       = 1.0
-        stop        = None
-    else:
-        max_tokens  = 250       # was 150 — gives room for complete answers
-        temperature = 0.5       # was 0.7 — less random = more reliable health info
-        top_p       = 0.9
-        stop        = ["User:", "Human:"]   # prevent role-play bleed
-
-    def _call() -> str:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            stop=stop,
-        )
-        return response.choices[0].message.content.strip()
-
-    try:
-        result = _call()
-
-        # Quality check for chat mode — retry once if suspiciously short
-        if mode == "chat" and len(result.split()) < 8:
-            result = _call()
-
-        return result
-
-    except Exception as e:
-        raise RuntimeError(f"Groq API error: {e}")

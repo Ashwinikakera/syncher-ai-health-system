@@ -1,139 +1,89 @@
-# backend/apps/dashboard_app/services.py
+"""
+Dashboard Services - Generate health insights with AI
+"""
 
-from apps.cycle_app.models import CycleHistory
-from apps.log_app.models import DailyLog
-
-
-def get_user_data_for_ml(user):
-    """
-    Collects all user data from DB and formats it
-    for Dev3's ML prediction function.
-    """
-    cycles = CycleHistory.objects.filter(user=user).order_by("start_date")
-    cycle_records = [
-        {
-            "start_date":   str(c.start_date),
-            "cycle_length": c.cycle_length,
-        }
-        for c in cycles
-    ]
-
-    logs = DailyLog.objects.filter(user=user).order_by("-date")[:30]
-    log_records = [
-        {
-            "date":     str(l.date),
-            "pain":     l.pain,
-            "mood":     l.mood,
-            "flow":     l.flow,
-            "sleep":    l.sleep,
-            "stress":   l.stress,
-            "exercise": l.exercise,
-        }
-        for l in logs
-    ]
-
-    return {
-        "cycle_records": cycle_records,
-        "log_records":   log_records,
-    }
+from apps.chatbot_app.llm import generate_dashboard_insights
 
 
 def get_dashboard_data(user):
     """
-    Main function called by dashboard view.
-    Calls Dev3's ML predict() directly.
-
-    Returns exact contract shape:
-    {
-        "next_period_date":       "2024-03-29",
-        "ovulation_window":       ["2024-03-14", "2024-03-16"],
-        "cycle_regularity_score": 0.85,
-        "insights":               ["Your cycle is regular", ...]
-    }
+    Get comprehensive dashboard data with AI insights.
     """
-    user_data = get_user_data_for_ml(user)
+    from apps.cycle_app.models import CycleHistory
+    from apps.log_app.models import DailyLog
+    from apps.health_app.models import MyHealth
+    from datetime import date, timedelta
 
+    # Get user data
     try:
-        # ── DEV3 INTEGRATION POINT ────────────────────────────────
-        from ml_service.prediction.predict import predict
-        result = predict(user_data)
+        health = MyHealth.objects.get(user=user)
+        score = health.score
+        risk_level = health.risk_level
+    except MyHealth.DoesNotExist:
+        score = None
+        risk_level = "Unknown"
 
-        return {
-            "next_period_date":       result["next_period_date"],
-            "ovulation_window":       result["ovulation_window"],
-            "cycle_regularity_score": result["cycle_regularity_score"],
-            "insights":               result["insights"],
+    # Get recent logs (last 7 days)
+    seven_days_ago = date.today() - timedelta(days=7)
+    recent_logs = DailyLog.objects.filter(
+        user=user,
+        date__gte=seven_days_ago
+    ).order_by('-date').values()
+
+    # Get cycle data
+    latest_cycle = CycleHistory.objects.filter(user=user).order_by('-start_date').first()
+    
+    cycle_status = "No cycle logged"
+    next_period = None
+    if latest_cycle:
+        if latest_cycle.end_date:
+            cycle_status = "Completed"
+        else:
+            cycle_status = "Active"
+        
+        # Predict next period
+        try:
+            avg_length = user.onboarding.avg_cycle_length
+            if latest_cycle.end_date:
+                next_period = latest_cycle.end_date + timedelta(days=avg_length)
+            else:
+                next_period = latest_cycle.start_date + timedelta(days=avg_length)
+        except:
+            next_period = None
+
+    # Get recent symptoms
+    recent_symptom = None
+    if recent_logs:
+        recent_log = list(recent_logs)[0]
+        recent_symptom = {
+            "date": recent_log.get('date'),
+            "stress": recent_log.get('stress'),
+            "sleep": recent_log.get('sleep'),
+            "pain": recent_log.get('pain'),
+            "mood": recent_log.get('mood')
         }
-        # ─────────────────────────────────────────────────────────
 
-    except ImportError as e:
-        # ml_service not found — path issue
-        print(f"[dashboard_service] ImportError: {e}")
-        return _stub_dashboard_response(user_data)
+    # Prepare user context for AI
+    user_context = {
+        "stress": recent_symptom.get('stress') if recent_symptom else "unknown",
+        "sleep": recent_symptom.get('sleep') if recent_symptom else "unknown",
+        "pain": recent_symptom.get('pain') if recent_symptom else "unknown",
+        "mood": recent_symptom.get('mood') if recent_symptom else "unknown",
+    }
 
-    except ValueError as e:
-        # predict() raised — not enough cycle data
-        print(f"[dashboard_service] ValueError: {e}")
-        return _stub_dashboard_response(user_data)
-
-    except KeyError as e:
-        # predict() returned unexpected shape
-        print(f"[dashboard_service] KeyError - unexpected ML response shape: {e}")
-        return _stub_dashboard_response(user_data)
-
-    except Exception as e:
-        # Any other unexpected error
-        print(f"[dashboard_service] Unexpected error: {e}")
-        return _stub_dashboard_response(user_data)
-
-
-def _stub_dashboard_response(user_data):
-    """
-    Stub response that calculates basic predictions
-    using simple date arithmetic.
-    Keeps Dev2 unblocked while Dev3 ML is unavailable.
-    """
-    from datetime import date, timedelta, datetime
-
-    today         = date.today()
-    cycles        = user_data.get("cycle_records", [])
-    logs          = user_data.get("log_records",   [])
-
-    # Simple next period prediction
-    lengths = [c["cycle_length"] for c in cycles if c.get("cycle_length")]
-    avg_length = round(sum(lengths) / len(lengths)) if lengths else 28
-
-    if cycles:
-        last_start  = datetime.strptime(cycles[-1]["start_date"], "%Y-%m-%d").date()
-        next_period = last_start + timedelta(days=avg_length)
-    else:
-        next_period = today + timedelta(days=avg_length)
-
-    ovulation_start = next_period - timedelta(days=16)
-    ovulation_end   = next_period - timedelta(days=12)
-
-    # Basic regularity score
-    if len(lengths) >= 3:
-        variance = max(lengths) - min(lengths)
-        score    = round(max(0.0, 1.0 - (variance / 10)), 2)
-    else:
-        score = 0.75
-
-    # Basic insights from logs
-    insights    = []
-    high_stress = sum(1 for l in logs if l.get("stress") == "high")
-    low_sleep   = sum(1 for l in logs if (l.get("sleep") or 8) < 6)
-
-    if high_stress > 3:
-        insights.append("High stress detected — may delay your cycle")
-    if low_sleep > 3:
-        insights.append("Low sleep detected — may affect cycle regularity")
-    if not insights:
-        insights.append("Keep logging daily for better insights")
+    # Get AI insights
+    insights_data = generate_dashboard_insights(
+        user_data=user_context,
+        recent_logs=list(recent_logs)
+    )
 
     return {
-        "next_period_date":       str(next_period),
-        "ovulation_window":       [str(ovulation_start), str(ovulation_end)],
-        "cycle_regularity_score": score,
-        "insights":               insights,
+        "health_score": score,
+        "risk_level": risk_level,
+        "cycle_status": cycle_status,
+        "next_period": str(next_period) if next_period else None,
+        "recent_symptoms": recent_symptom,
+        "ai_insights": insights_data.get("insights"),
+        "recent_logs_count": len(recent_logs),
+        "last_updated": "now"
     }

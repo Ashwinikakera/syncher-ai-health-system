@@ -10,9 +10,9 @@
     "recharts": "^2.10.3"
   },
   "scripts": {
-    "start": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "npx vite",
+    "build": "npx vite build",
+    "preview": "npx vite preview"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

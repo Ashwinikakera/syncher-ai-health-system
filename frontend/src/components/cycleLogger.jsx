@@ -1,45 +1,101 @@
-import React, { useState } from "react";
-import { addCycle } from "../services/cycleService";
+import React, { useState, useEffect } from "react";
+import { addCycle, endCycle } from "../services/cycleService";
 
 export default function CycleLogger() {
   const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [isActive, setIsActive] = useState(false);
 
-  const handleSubmit = async () => {
+  useEffect(() => {
+    const cycle = JSON.parse(localStorage.getItem("cycle"));
+    if (cycle?.isActive) {
+      setIsActive(true);
+      setStartDate(cycle.startDate);
+    }
+  }, []);
+
+  // 🟢 START CYCLE
+  const handleStart = async () => {
+    if (!startDate) {
+      alert("Select start date");
+      return;
+    }
+
     try {
-      await addCycle({
-        start_date: startDate,
-        end_date: endDate
-      });
-      alert("Cycle saved");
+      // FIX: now calls /cycle/start/ with correct data
+      await addCycle({ start_date: startDate });
+
+      localStorage.setItem(
+        "cycle",
+        JSON.stringify({
+          startDate,
+          isActive: true
+        })
+      );
+
+      alert("Cycle started ✅");
+      window.location.href = "/daily-logs";
+
     } catch (err) {
-      console.log(err);
-      alert("Demo cycle saved");
+      // FIX: show actual error instead of silently ignoring
+      console.log("Cycle start error:", err);
+      alert(
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Failed to start cycle. Please try again."
+      );
     }
   };
 
-  // 🔥 SAME CARD STYLE
+  // 🔴 END CYCLE
+  const handleEnd = async () => {
+    const today = new Date().toISOString().split("T")[0];
+
+    try {
+      // FIX: now sends end_date data
+      await endCycle({ end_date: today });
+
+      localStorage.removeItem("cycle");
+
+      alert("Cycle ended ✅");
+      window.location.reload();
+
+    } catch (err) {
+      // FIX: show actual error instead of silently ignoring
+      console.log("Cycle end error:", err);
+      alert(
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Failed to end cycle. Please try again."
+      );
+    }
+  };
+
+  // ✅ PAGE STYLES
+  const page = {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #ffe5e5, #fff0f0)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center"
+  };
+
   const card = {
     background: "#fff",
     padding: "25px",
     borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
     maxWidth: "400px",
-    margin: "40px auto",
+    width: "100%",
     textAlign: "center"
   };
 
-  // 🔥 SAME INPUT STYLE
   const inputStyle = {
     width: "100%",
     padding: "10px",
     borderRadius: "6px",
-    border: "1px solid #ccc",
-    fontSize: "14px",
-    boxSizing: "border-box"
+    border: "1px solid #ccc"
   };
 
-  // 🔥 SAME BUTTON STYLE
   const buttonStyle = {
     width: "100%",
     padding: "12px",
@@ -51,38 +107,55 @@ export default function CycleLogger() {
     fontWeight: "bold"
   };
 
+  const formGroup = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "15px",
+    marginTop: "20px"
+  };
+
   return (
-    <div style={card}>
-      <h3>Cycle Logger</h3>
+    <div style={page}>
+      <div style={card}>
+        <h3>Cycle Tracker</h3>
 
-      {/* 🔥 ONLY CHANGE: added labels + left align */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px", textAlign: "left" }}>
+        {!isActive ? (
+          <div style={formGroup}>
+            <input
+              style={inputStyle}
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
 
-        {/* Start Date */}
-        <label style={{ fontWeight: "bold" }}>Start Date</label>
-        <input
-          style={inputStyle}
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
+            <button style={buttonStyle} onClick={handleStart}>
+              Start Cycle
+            </button>
 
-        {/* End Date */}
-        <label style={{ fontWeight: "bold" }}>End Date</label>
-        <input
-          style={inputStyle}
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
 
-        <button style={buttonStyle} onClick={handleSubmit}>
-          Save Cycle
-        </button>
+            <p style={{
+              marginTop: "12px",
+              fontSize: "12px",
+              color: "#666",
+              textAlign: "center",
+              lineHeight: "1.4"
+            }}>
+              ⚠️ This cycle tracker works based on the dates you provide. When you enter your cycle start date, the system will switch to cycle logging mode instead of daily logging. You must manually mark the end of your cycle when it finishes to ensure accurate tracking. If the cycle is not ended properly, predictions and logs may be inaccurate. This tool is for tracking purposes only and does not provide medical advice.
+            </p>
+          </div>
+        ) : (
+          <div style={formGroup}>
+            <p><strong>Cycle Active from:</strong> {startDate}</p>
 
+            <button
+              style={{ ...buttonStyle, background: "black" }}
+              onClick={handleEnd}
+            >
+              End Cycle
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-// This component handles cycle tracking by collecting start and end dates and sending them via cycleService, ensuring alignment with API contract while supporting demo fallback
