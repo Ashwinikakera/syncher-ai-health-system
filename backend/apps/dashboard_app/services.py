@@ -81,7 +81,7 @@ def get_dashboard_data(user):
         "health_score": score,
         "risk_level": risk_level,
         "cycle_status": cycle_status,
-        "next_period": str(next_period.date()) if next_period else None,
+        "next_period": str(next_period) if next_period else None,
         "recent_symptoms": recent_symptom,
         "ai_insights": insights_data.get("insights"),
         "recent_logs_count": len(recent_logs),
