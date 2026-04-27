@@ -9,7 +9,7 @@ class CycleHistory(models.Model):
     POST /api/cycle/start → { "start_date": "2024-03-01" }
     POST /api/cycle/end   → { "end_date": "2024-03-05" }
 
-    GET /api/cycle returns:
+    GET /api/cycle returns-
     {
         "cycles": [
             {

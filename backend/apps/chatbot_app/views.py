@@ -43,7 +43,7 @@ def get_user_context(user):
 
 class ChatView(APIView):
     """
-    Chatbot endpoint - answers user questions with AI
+    Chatbot endpoint : answers user questions with AI
     POST /api/chat/
     """
     permission_classes = [IsAuthenticated]

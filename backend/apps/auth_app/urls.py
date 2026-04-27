@@ -1,7 +1,7 @@
 from django.urls import path
 from apps.auth_app.views import RegisterView, LoginView, OnboardingView
 
-# urls for register login/onboarding
+# urls for register, login , onboarding
 
 urlpatterns = [
     path('register/',    RegisterView.as_view(),    name='register'),

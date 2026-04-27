@@ -14,18 +14,22 @@ django-celery-beat==2.6.0           # Scheduled periodic tasks (reminders)
 django-celery-results==2.5.1        # Store task results in DB
 
 # DEV3 — ML / Data Science Layer (ml_service/)
+flask==3.0.3
 numpy==1.26.4
-pandas==2.2.2
 scikit-learn==1.4.2
-tensorflow==2.15.1                  # LSTM model (Phase 3)
-keras==2.15.0                       # High-level API for LSTM
-requests==2.31.0
-joblib==1.4.2
+pandas==2.2.2
+ 
+# TensorFlow — CPU only for dev machines
+# On GPU server replace with: tensorflow==2.15.1
+tensorflow-cpu==2.15.1
+ 
+# Groq SDK
+groq==0.9.0
+ 
+# Env management
+python-dotenv==1.0.1
 
 # DEV3 — RAG / Chatbot / Ollama client (ml_service/chatbot/)
-requests==2.31.0                    # ollama_client.py calls Ollama REST API
-langchain==0.1.20                   # Optional: RAG chain utilities
-langchain-community==0.0.38         # Document loaders, vector store wrappers
 sentence-transformers==2.7.0        # Embeddings for RAG retrieval
 faiss-cpu==1.8.0                    # Local vector similarity search
 
@@ -34,6 +38,7 @@ python-dateutil==2.9.0              # Date arithmetic (cycle predictions)
 pytz==2024.1                        # Timezone handling
 Pillow==10.3.0                      # Image handling (future profile features)
 pydantic==2.7.1                     # Data validation in ml_service
+requests==2.31.0   
 
 # Development & Testing
 pytest==8.2.0
@@ -42,7 +47,4 @@ factory-boy==3.3.0                  # Test data factories
 coverage==7.5.1
 black==24.4.2                       # Code formatter
 flake8==7.0.0                       # Linter
-groq
-python-dotenv
-
 
