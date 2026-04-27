@@ -120,7 +120,7 @@ class OnboardingView(APIView):
         serializer = OnboardingSerializer(data=request.data)
 
         if serializer.is_valid():
-            # Save onboarding data
+            # Saves onboarding data
             Onboarding.objects.create(
                 user              = request.user,
                 age               = serializer.validated_data['age'],

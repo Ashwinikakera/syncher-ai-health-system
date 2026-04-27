@@ -1,8 +1,3 @@
-"""
-LLM Service for All AI Features - FIXED VERSION
-Using correct Groq API: client.chat.completions.create()
-"""
-
 import os
 from typing import Dict
 from groq import Groq

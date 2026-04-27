@@ -61,7 +61,7 @@ class LoginSerializer(serializers.Serializer):
 
 class OnboardingSerializer(serializers.ModelSerializer):
     """
-    this Validates POST  /api/onboarding
+    this Validates POST /api/onboarding
     """
 
     cycle_history = serializers.ListField(

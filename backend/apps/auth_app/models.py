@@ -87,7 +87,7 @@ class Onboarding(models.Model):
     mood              = models.CharField(max_length=10, choices=MOOD_CHOICES)
     flow              = models.CharField(max_length=10, choices=FLOW_CHOICES)
 
-    # Medical info
+    # Medical information
     medical_condition = models.CharField(max_length=100, blank=True, null=True)
     medical_notes     = models.TextField(blank=True, null=True)
 

@@ -4,7 +4,7 @@ from apps.cycle_app.models import CycleHistory, PredictionFeedback
 
 class CycleStartSerializer(serializers.ModelSerializer):
     """
-    Validates POST /api/cycle/start
+    Validate POST /api/cycle/start
     {
         "start_date": "2024-03-01"
     }
